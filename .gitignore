@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*.php
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+vendor/
+cache/*
+!cache/.gitkeep
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.phpunit.result.cache
