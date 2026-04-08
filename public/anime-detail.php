@@ -74,16 +74,19 @@ if ($tmdbId > 0 && $tmdbType === 'tv') {
     $episodes = [];
 }
 
-// For movies, watch URL is direct
-$movieWatchUrl = ($tmdbId > 0 && $tmdbType === 'movie')
-    ? movieWatchUrl($tmdbId)
+// For movies, watch URL goes directly to the HLS anime player (episode 1 = full movie)
+$movieWatchUrl = ($anime['type'] === 'Movie' || ($tmdbId > 0 && $tmdbType === 'movie'))
+    ? animeWatchUrl($malId, 1)
     : '';
 
-// Episode watch URL builder (used in template)
+// Episode watch URL builder — always uses the HLS anime player now
 $firstEpUrl = '';
-if ($tmdbId > 0 && $tmdbType === 'tv' && !empty($episodes)) {
+if (!empty($episodes)) {
     $firstEpNum = (int)($episodes[0]['episode_number'] ?? 1);
-    $firstEpUrl = tvWatchUrl($tmdbId, $currentSeason, $firstEpNum);
+    $firstEpUrl = animeWatchUrl($malId, $firstEpNum);
+} elseif ($tmdbId === 0 && $episodeCount > 0) {
+    // No TMDB episodes but Jikan knows there are episodes — link to ep 1 anyway
+    $firstEpUrl = animeWatchUrl($malId, 1);
 }
 
 $activePage = 'anime';
@@ -156,8 +159,10 @@ $activePage = 'anime';
           <a class="btn btn-play" href="<?= e($movieWatchUrl) ?>">&#9654; Watch Movie</a>
         <?php elseif ($tmdbId > 0 && $firstEpUrl): ?>
           <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; Play S<?= $currentSeason ?>E1</a>
-        <?php elseif ($tmdbId === 0): ?>
-          <span class="btn btn-info" style="cursor:default;opacity:.5;" title="Could not find this title on the streaming index">&#9888; Stream unavailable</span>
+        <?php elseif ($firstEpUrl): ?>
+          <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; Play Episode 1</a>
+        <?php else: ?>
+          <span class="btn btn-info" style="cursor:default;opacity:.5;" title="Could not find episode data">&#9888; Stream unavailable</span>
         <?php endif; ?>
         <a class="btn btn-info" href="<?= e(BASE_URL . '/anime.php') ?>">&#8592; Back to Anime</a>
         <?php if ($trailer): ?>
@@ -201,7 +206,7 @@ $activePage = 'anime';
           $epOverview = truncate($ep['overview'] ?? '', 180);
           $epDate     = $ep['air_date'] ?? '';
           $epStill    = stillUrl($ep['still_path'] ?? null);
-          $epWatch    = tvWatchUrl($tmdbId, $currentSeason, $epNum);
+          $epWatch    = animeWatchUrl($malId, $epNum);
         ?>
         <div class="episode-card">
           <a href="<?= e($epWatch) ?>">

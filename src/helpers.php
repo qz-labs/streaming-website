@@ -195,6 +195,14 @@ function animeDetailUrl(int $malId): string
 }
 
 /**
+ * URL to the anime HLS watch page (Consumet-powered).
+ */
+function animeWatchUrl(int $malId, int $episode = 1): string
+{
+    return BASE_URL . '/anime-watch.php?mal_id=' . $malId . '&episode=' . $episode;
+}
+
+/**
  * Jikan image URL — returns the largest available image or a placeholder.
  */
 function jikanImg(array $images, string $size = 'large'): string

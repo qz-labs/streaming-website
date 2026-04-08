@@ -115,11 +115,6 @@ class TmdbApi
         return $this->results('/movie/top_rated');
     }
 
-    public function topRatedTv(): array
-    {
-        return $this->results('/tv/top_rated');
-    }
-
     /**
      * Full movie detail object including cast credits.
      */
@@ -150,32 +145,6 @@ class TmdbApi
     public function search(string $query): array
     {
         return $this->results('/search/multi', ['query' => $query]);
-    }
-
-    /**
-     * Anime movies (animation genre + anime keyword).
-     */
-    public function animeMovies(int $page = 1): array
-    {
-        return $this->results('/discover/movie', [
-            'with_genres'   => '16',
-            'with_keywords' => '210024',
-            'sort_by'       => 'popularity.desc',
-            'page'          => $page,
-        ]);
-    }
-
-    /**
-     * Anime TV series (animation genre + anime keyword).
-     */
-    public function animeSeries(int $page = 1): array
-    {
-        return $this->results('/discover/tv', [
-            'with_genres'   => '16',
-            'with_keywords' => '210024',
-            'sort_by'       => 'popularity.desc',
-            'page'          => $page,
-        ]);
     }
 
     /**

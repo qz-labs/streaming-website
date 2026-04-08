@@ -91,18 +91,6 @@ class JikanApi
     }
 
     /**
-     * All-time popular anime (any type).
-     */
-    public function popularAnime(int $page = 1): array
-    {
-        return $this->results('/top/anime', [
-            'filter' => 'bypopularity',
-            'page'   => $page,
-            'limit'  => 25,
-        ]);
-    }
-
-    /**
      * Search anime by title.
      * $type: '' | 'tv' | 'movie' | 'ova' | 'special' | 'ona'
      */
@@ -122,34 +110,4 @@ class JikanApi
         return $data['data'] ?? [];
     }
 
-    /**
-     * Episode list for an anime (100 per page).
-     * Returns ['episodes' => [...], 'has_next' => bool]
-     */
-    public function animeEpisodes(int $malId, int $page = 1): array
-    {
-        $data = $this->cachedFetch('/anime/' . $malId . '/episodes', ['page' => $page]);
-        return [
-            'episodes' => $data['data'] ?? [],
-            'has_next' => ($data['pagination']['has_next_page'] ?? false),
-            'last_page' => ($data['pagination']['last_visible_page'] ?? 1),
-        ];
-    }
-
-    /**
-     * Characters & voice actors for an anime (used for cast section).
-     */
-    public function animeCharacters(int $malId): array
-    {
-        return $this->results('/anime/' . $malId . '/characters');
-    }
-
-    /**
-     * External links for an anime — includes streaming sites, AniDB, etc.
-     * Used to try to find IMDB/TMDB equivalents.
-     */
-    public function animeExternal(int $malId): array
-    {
-        return $this->results('/anime/' . $malId . '/external');
-    }
 }

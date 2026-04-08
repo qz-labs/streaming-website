@@ -71,6 +71,10 @@ define('VIDSRC_BASE', 'https://' . VIDSRC_DOMAINS[0] . '/embed');
 define('SITE_NAME',         env('SITE_NAME', 'StreamFlix'));
 define('BASE_URL',          env('BASE_URL', '/StreamingWebsite/public'));  // no trailing slash
 
+// ── HiAnime API + m3u8 proxy (optional) ──────────────────────────────────────
+define('CONSUMET_URL',      rtrim(env('CONSUMET_URL',    ''), '/'));  // empty = disabled
+define('M3U8_PROXY_URL',    rtrim(env('M3U8_PROXY_URL', ''), '/'));  // empty = no proxy
+
 // ── File cache ────────────────────────────────────────────────────────────────
 define('CACHE_DIR',         __DIR__ . '/../cache');
 define('CACHE_TTL',         (int) env('CACHE_TTL', '3600'));   // seconds (1 hour)
