@@ -614,19 +614,21 @@ html, body {
 
   /* --- Page shell ------------------------------------------------------------ */
   html, body {
-    min-height: -webkit-fill-available;
+    height: 100%;
   }
 
   /* Switch to overlay layout on mobile:
-     video fills 100% of the screen, topbar floats on top */
+     video fills 100% of the screen, topbar floats on top.
+     Use position:fixed so the player is pinned to the visible viewport —
+     avoids the collapse that happens when all children are absolutely positioned
+     inside a position:relative block with only min-height. */
   .player-page {
-    position: relative;
-    min-height: -webkit-fill-available;
-    /* Override flex column so nothing takes space from the video */
+    position: fixed;
+    inset: 0;
     display: block;
   }
 
-  /* Frame wraps the full player-page */
+  /* Frame fills the fixed player-page */
   .player-frame-wrap {
     position: absolute;
     inset: 0;
