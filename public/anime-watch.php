@@ -310,19 +310,48 @@ $today         = date('Y-m-d');
   function savePref(mode)   { try { localStorage.setItem(PREF_KEY, mode); } catch(_) {} }
   function loadPref()       { try { return localStorage.getItem(PREF_KEY) || 'sub'; } catch(_) { return 'sub'; } }
 
+  // ── Mobile: overlay UI + auto-fullscreen ──────────────────────────────────
+  const isMobile  = window.matchMedia('(max-width: 640px)').matches;
+  const playerPage = document.querySelector('.player-page');
+  let fsTriggered = false;
+
+  function enterFullscreen() {
+    if (fsTriggered) return;
+    fsTriggered = true;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+  }
+
   let hideTimer = null;
   function showControls() {
     wrap.classList.add('controls-visible');
+    if (isMobile && playerPage) playerPage.classList.remove('ui-hidden');
     clearTimeout(hideTimer);
     if (!video.paused) {
-      hideTimer = setTimeout(() => wrap.classList.remove('controls-visible'), 3000);
+      hideTimer = setTimeout(() => {
+        wrap.classList.remove('controls-visible');
+        if (isMobile && playerPage) playerPage.classList.add('ui-hidden');
+      }, 3000);
     }
   }
   wrap.addEventListener('mousemove',  showControls);
-  wrap.addEventListener('touchstart', showControls, { passive: true });
+  wrap.addEventListener('touchstart', (e) => {
+    if (!e.target.closest('button, a, select, input')) enterFullscreen();
+    showControls();
+  }, { passive: true });
   wrap.addEventListener('mouseleave', () => {
-    if (!video.paused) { clearTimeout(hideTimer); wrap.classList.remove('controls-visible'); }
+    if (!video.paused) {
+      clearTimeout(hideTimer);
+      wrap.classList.remove('controls-visible');
+      if (isMobile && playerPage) playerPage.classList.add('ui-hidden');
+    }
   });
+
+  // On mobile: start with UI visible briefly, then auto-hide when playing
+  if (isMobile && playerPage) {
+    showControls(); // show on load
+  }
 
   function fmt(s) {
     if (!isFinite(s)) return '0:00';
@@ -420,7 +449,11 @@ $today         = date('Y-m-d');
 
   function toggleFullscreen() {
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
+      // On mobile fullscreen the whole page so our overlay UI is included;
+      // on desktop fullscreen just the frame-wrap for a cleaner cinema view.
+      const el = isMobile ? document.documentElement : wrap;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) req.call(el).catch(() => {});
     } else {
       (document.exitFullscreen || document.webkitExitFullscreen).call(document);
     }

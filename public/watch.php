@@ -354,13 +354,52 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
 
   autoDetect();
 
-  // ── Topbar fullscreen button ──────────────────────────────────────────────
-  const topbarFsBtn  = document.getElementById('topbar-fs-btn');
+  // ── Mobile: overlay UI + auto-fullscreen ─────────────────────────────────
+  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+  const playerPage = document.querySelector('.player-page');
+
+  if (isMobile && playerPage) {
+    let uiTimer = null;
+    let fsTriggered = false;
+
+    function showUI() {
+      playerPage.classList.remove('ui-hidden');
+      clearTimeout(uiTimer);
+      uiTimer = setTimeout(() => playerPage.classList.add('ui-hidden'), 3500);
+    }
+
+    function enterFullscreen() {
+      if (fsTriggered) return;
+      fsTriggered = true;
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) req.call(el).catch(() => {});
+    }
+
+    // On first touch anywhere: enter fullscreen + show UI
+    document.addEventListener('touchstart', (e) => {
+      // Don't intercept taps on actual buttons/links
+      if (!e.target.closest('button, a, select, input')) enterFullscreen();
+      showUI();
+    }, { passive: true });
+
+    // Topbar buttons should also show UI when tapped
+    document.querySelector('.player-topbar').addEventListener('touchstart', showUI, { passive: true });
+
+    // Start hidden — first touch reveals UI
+    playerPage.classList.add('ui-hidden');
+    // Show briefly on load so user knows controls exist
+    showUI();
+  }
+
+  // ── Topbar fullscreen button (desktop fallback) ───────────────────────────
+  const topbarFsBtn = document.getElementById('topbar-fs-btn');
   const playerFrameWrap = document.querySelector('.player-frame-wrap');
   if (topbarFsBtn && playerFrameWrap) {
     topbarFsBtn.addEventListener('click', () => {
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        (playerFrameWrap.requestFullscreen || playerFrameWrap.webkitRequestFullscreen).call(playerFrameWrap);
+        const el = isMobile ? document.documentElement : playerFrameWrap;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});
       } else {
         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
       }

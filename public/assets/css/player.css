@@ -4,7 +4,6 @@ html, body {
   padding: 0;
   background: #000;
   height: 100%;
-  /* Prevent scroll bounce / rubber-banding on iOS from moving content off-screen */
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -12,11 +11,10 @@ html, body {
 .player-page {
   display: flex;
   flex-direction: column;
-  /* 100dvh = dynamic viewport height (adapts when iOS address bar shows/hides).
-     Falls back to 100vh on browsers that don't support dvh yet. */
   height: 100vh;
   height: 100dvh;
   background: #000;
+  overflow: hidden;
 }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────────── */
@@ -28,7 +26,8 @@ html, body {
   height: 48px;
   flex-shrink: 0;
   background: rgba(0,0,0,0.95);
-  z-index: 20;
+  z-index: 30;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .player-back {
@@ -124,6 +123,7 @@ html, body {
   flex-shrink: 0;
   background: #000;
   min-height: 18px;
+  transition: opacity 0.25s ease;
 }
 
 /* ── Video / iframe area ─────────────────────────────────────────────────────── */
@@ -133,7 +133,6 @@ html, body {
   background: #000;
   overflow: hidden;
   cursor: none;
-  /* Ensure it never shrinks below 0 so flex calculation stays correct */
   min-height: 0;
 }
 .player-frame-wrap.controls-visible { cursor: default; }
@@ -615,24 +614,49 @@ html, body {
 
   /* --- Page shell ------------------------------------------------------------ */
   html, body {
-    /* -webkit-fill-available accounts for iOS Safari's dynamic toolbar better
-       than any fixed unit. Use it as the height source. */
     min-height: -webkit-fill-available;
   }
 
+  /* Switch to overlay layout on mobile:
+     video fills 100% of the screen, topbar floats on top */
   .player-page {
+    position: relative;
     min-height: -webkit-fill-available;
+    /* Override flex column so nothing takes space from the video */
+    display: block;
   }
 
-  /* --- Topbar: two-row layout ------------------------------------------------ */
+  /* Frame wraps the full player-page */
+  .player-frame-wrap {
+    position: absolute;
+    inset: 0;
+    flex: none;
+    min-height: 0;
+  }
+
+  /* Topbar: floats over the video + two-row layout */
   .player-topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
     flex-wrap: wrap;
     height: auto;
-    /* Compact vertical spacing so the topbar steals as little video space
-       as possible on small screens. */
-    padding: 5px 10px;
+    padding: 5px 10px 20px;   /* extra bottom padding fades into gradient */
     row-gap: 4px;
     column-gap: 6px;
+  }
+
+  /* Status bar hidden on mobile */
+  .player-status {
+    display: none;
+  }
+
+  /* UI hidden: topbar slides up and disappears */
+  .player-page.ui-hidden .player-topbar {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-100%);
   }
 
   /* Row 1: ← Back  |  Show Title  (break forces next items to row 2) */
