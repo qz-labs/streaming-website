@@ -117,6 +117,7 @@ $today         = date('Y-m-d');
     </nav>
 
     <button class="ep-toggle-btn" id="ep-panel-toggle" title="Episode list">&#9776; Episodes</button>
+    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">&#x26F6;</button>
   </div>
 
   <!-- Status bar -->
@@ -417,15 +418,33 @@ $today         = date('Y-m-d');
     fsIcon.innerHTML = '<path d="' + (inFs ? FS_EXIT : FS_ENTER) + '"/>';
   }
 
-  btnFs.addEventListener('click', () => {
+  function toggleFullscreen() {
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
       (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
     } else {
       (document.exitFullscreen || document.webkitExitFullscreen).call(document);
     }
-  });
-  document.addEventListener('fullscreenchange',       updateFsIcon);
-  document.addEventListener('webkitfullscreenchange', updateFsIcon);
+  }
+
+  btnFs.addEventListener('click', toggleFullscreen);
+
+  // Topbar fullscreen button — same action, always visible
+  const topbarFsBtn = document.getElementById('topbar-fs-btn');
+  if (topbarFsBtn) {
+    topbarFsBtn.addEventListener('click', toggleFullscreen);
+  }
+
+  function updateAllFsIcons() {
+    updateFsIcon();
+    if (topbarFsBtn) {
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      topbarFsBtn.innerHTML = inFs ? '&#x2715;' : '&#x26F6;';
+      topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
+    }
+  }
+
+  document.addEventListener('fullscreenchange',       updateAllFsIcons);
+  document.addEventListener('webkitfullscreenchange', updateAllFsIcons);
 
   let availableSubtitles = [];
   let cachedSubtitles    = []; // subtitles from the sub stream, reused for dub

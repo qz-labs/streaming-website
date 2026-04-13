@@ -149,6 +149,7 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     </nav>
     <button class="ep-toggle-btn" id="ep-panel-toggle" title="Episode list">&#9776; Episodes</button>
     <?php endif; ?>
+    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">&#x26F6;</button>
   </div>
 
   <!-- Status line -->
@@ -352,6 +353,26 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   });
 
   autoDetect();
+
+  // ── Topbar fullscreen button ──────────────────────────────────────────────
+  const topbarFsBtn  = document.getElementById('topbar-fs-btn');
+  const playerFrameWrap = document.querySelector('.player-frame-wrap');
+  if (topbarFsBtn && playerFrameWrap) {
+    topbarFsBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        (playerFrameWrap.requestFullscreen || playerFrameWrap.webkitRequestFullscreen).call(playerFrameWrap);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    });
+    function updateTopbarFsIcon() {
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      topbarFsBtn.innerHTML = inFs ? '&#x2715;' : '&#x26F6;';
+      topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
+    }
+    document.addEventListener('fullscreenchange',       updateTopbarFsIcon);
+    document.addEventListener('webkitfullscreenchange', updateTopbarFsIcon);
+  }
 })();
 </script>
 
