@@ -1,7 +1,23 @@
 /* ── Player page shell ───────────────────────────────────────────────────────── */
-html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  height: 100%;
+  /* Prevent scroll bounce / rubber-banding on iOS from moving content off-screen */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
-.player-page { display: flex; flex-direction: column; height: 100vh; background: #000; }
+.player-page {
+  display: flex;
+  flex-direction: column;
+  /* 100dvh = dynamic viewport height (adapts when iOS address bar shows/hides).
+     Falls back to 100vh on browsers that don't support dvh yet. */
+  height: 100vh;
+  height: 100dvh;
+  background: #000;
+}
 
 /* ── Top bar ─────────────────────────────────────────────────────────────────── */
 .player-topbar {
@@ -32,6 +48,7 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* ── Sub / Dub language toggle ───────────────────────────────────────────────── */
@@ -61,7 +78,7 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
 .lang-btn.active       { background: #E50914; color: #fff; }
 .lang-btn:disabled     { opacity: .35; cursor: default; }
 
-/* ── Episode nav (anime-watch only) ─────────────────────────────────────────── */
+/* ── Episode nav (anime-watch + watch TV) ────────────────────────────────────── */
 .ep-nav { display: flex; gap: 4px; flex-shrink: 0; }
 
 .ep-nav a, .ep-nav span {
@@ -75,6 +92,7 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
   background: #1a1a1a;
   border: 1px solid #333;
   transition: background .15s, color .15s;
+  white-space: nowrap;
 }
 .ep-nav a:hover { background: #2a2a2a; color: #ccc; }
 .ep-nav span    { opacity: .3; cursor: default; }
@@ -115,6 +133,8 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
   background: #000;
   overflow: hidden;
   cursor: none;
+  /* Ensure it never shrinks below 0 so flex calculation stays correct */
+  min-height: 0;
 }
 .player-frame-wrap.controls-visible { cursor: default; }
 
@@ -389,6 +409,7 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
   width: 300px;
   max-width: 90vw;
   height: 100vh;
+  height: 100dvh;
   background: #0d0d0d;
   border-left: 1px solid #222;
   z-index: 25;
@@ -564,109 +585,180 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
   pointer-events: none;
 }
 
-/* ── Mobile topbar (two-row layout) ─────────────────────────────────────────── */
-
-/* The break div is invisible on desktop */
+/* ── Mobile row-break helper (invisible on desktop) ─────────────────────────── */
 .player-topbar-break {
   display: none;
   flex: 0 0 100%;
   height: 0;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   MOBILE  ≤ 640 px
+   ══════════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 640px) {
+
+  /* --- Page shell ------------------------------------------------------------ */
+  html, body {
+    /* -webkit-fill-available accounts for iOS Safari's dynamic toolbar better
+       than any fixed unit. Use it as the height source. */
+    min-height: -webkit-fill-available;
+  }
+
+  .player-page {
+    min-height: -webkit-fill-available;
+  }
+
+  /* --- Topbar: two-row layout ------------------------------------------------ */
   .player-topbar {
     flex-wrap: wrap;
     height: auto;
-    min-height: 48px;
-    padding: 6px 10px;
-    row-gap: 6px;
+    /* Compact vertical spacing so the topbar steals as little video space
+       as possible on small screens. */
+    padding: 5px 10px;
+    row-gap: 4px;
+    column-gap: 6px;
   }
 
-  /* Show the break → title + back stay row 1, controls drop to row 2 */
-  .player-topbar-break {
-    display: block;
-  }
+  /* Row 1: ← Back  |  Show Title  (break forces next items to row 2) */
+  .player-topbar-break { display: block; }
 
   .player-back {
-    font-size: 1.1rem;
-    padding: 6px 6px 6px 0;
+    /* Bigger touch target */
+    font-size: 1.2rem;
+    padding: 6px 8px 6px 0;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
   }
 
   .player-title {
-    font-size: 0.76rem;
     flex: 1;
     min-width: 0;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    /* Allow two lines on very long titles before truncating */
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
-  /* Row 2 controls */
-  .lang-toggle {
-    flex-shrink: 0;
+  /* Row 2: lang-toggle  [auto-space]  ep-nav  ep-toggle-btn */
+  .lang-toggle { flex-shrink: 0; }
+
+  .lang-btn {
+    padding: 7px 11px;
+    font-size: 0.72rem;
+    /* Minimum 36 px touch target height */
+    min-height: 36px;
+    display: flex;
+    align-items: center;
   }
 
   .ep-nav {
-    margin-left: auto;
+    margin-left: auto;   /* push to right edge */
+    gap: 4px;
   }
 
-  /* Episode nav: bigger touch targets */
   .ep-nav a, .ep-nav span {
-    padding: 7px 14px;
-    font-size: 0.78rem;
+    padding: 7px 12px;
+    font-size: 0.72rem;
     min-height: 36px;
     display: inline-flex;
     align-items: center;
   }
 
-  /* Source buttons: wrap to their own scrollable row */
+  .ep-toggle-btn {
+    padding: 7px 9px;
+    font-size: 0.68rem;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Row 3 (source buttons only): full-width horizontal scroll */
   .source-btns {
     order: 10;
     flex: 0 0 100%;
     overflow-x: auto;
     scrollbar-width: none;
-    padding-bottom: 2px;
-    gap: 4px;
+    gap: 5px;
+    padding: 1px 0 3px;
   }
   .source-btns::-webkit-scrollbar { display: none; }
 
   .src-btn {
-    padding: 5px 12px;
-    font-size: 0.72rem;
+    padding: 6px 12px;
+    font-size: 0.7rem;
     min-height: 32px;
     white-space: nowrap;
   }
 
-  /* On mobile, keep ep-nav right-aligned (same row as lang-toggle).
-     Episode toggle sits at the far right after ep-nav. */
-  .ep-nav {
-    margin-left: auto;
-  }
+  /* --- Video controls -------------------------------------------------------- */
 
-  /* Bigger play/pause center icon on touch */
+  /* Bigger center play ripple */
   .center-play {
-    width: 80px;
-    height: 80px;
+    width: 76px;
+    height: 76px;
+  }
+  .center-play svg { width: 32px; height: 32px; }
+
+  /* Progress bar: thicker for touch scrubbing, always show thumb */
+  .progress-wrap        { height: 5px; }
+  .progress-wrap:hover  { height: 5px; }
+  .progress-wrap:active { height: 8px; }
+  .progress-thumb       { transform: translate(-50%, -50%) scale(1); }
+
+  /* Time display: slightly smaller to save space */
+  .time-display {
+    font-size: 0.66rem;
+    min-width: 76px;
   }
 
-  /* Taller progress bar for easier touch */
-  .progress-wrap { height: 6px; }
-  .progress-wrap:hover { height: 6px; }
-
-  /* Bigger control buttons */
+  /* Bigger touch targets for all control buttons */
   .ctrl-btn {
-    padding: 8px;
+    padding: 9px;
+    min-width: 40px;
+    min-height: 40px;
   }
   .ctrl-btn svg { width: 22px; height: 22px; }
 
-  /* Episode panel: full-width on small screens */
+  /* Volume slider is hover-only — useless on touch. Show it always instead. */
+  .volume-slider-wrap {
+    width: 60px;   /* always visible on mobile */
+    transition: none;
+  }
+  .volume-slider { width: 60px; }
+
+  /* Custom controls: extra bottom padding for the iOS home bar */
+  .custom-controls {
+    padding: 30px 10px max(12px, env(safe-area-inset-bottom, 12px));
+    gap: 10px;
+  }
+
+  /* Subtitle dropdown: limit height so it doesn't escape the frame */
+  .sub-dropdown {
+    max-height: 160px;
+    min-width: 130px;
+  }
+
+  /* --- Episode panel: full-screen on mobile ---------------------------------- */
   .ep-panel {
-    width: 100vw;
-    max-width: 100vw;
-    right: -100vw;
+    width: 100%;
+    max-width: 100%;
+    right: -100%;
   }
   .ep-panel.open { right: 0; }
 
-  .ep-toggle-btn {
-    padding: 5px 8px;
-    font-size: 0.68rem;
+  /* Bigger touch targets in episode list */
+  .ep-panel__item {
+    padding: 10px 12px;
+  }
+
+  .ep-panel__close {
+    padding: 8px 10px;
+    font-size: 1rem;
   }
 }
 
