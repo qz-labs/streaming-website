@@ -103,7 +103,7 @@ $activePage = '';
 
       <div class="detail-buttons">
         <a class="btn btn-play" href="<?= e($quickPlayUrl) ?>">&#9654; Play S<?= $season ?>E1</a>
-        <a class="btn btn-info" href="<?= e(BASE_URL . '/') ?>">&#8592; Back to Home</a>
+        <a class="btn btn-info" href="<?= e(BASE_URL . '/') ?>" id="detail-back-btn">&#8592; Back</a>
       </div>
     </div>
   </div>

@@ -14,7 +14,7 @@ async function extractSeasons(id) {
         const data_id = parseInt(href.split("-").pop());
         const season = $(element).find(".title").text().trim();
         const title = $(element).attr("title").trim() || "";
-        const id = href.replace(/^\/+/, "");
+        const id = href.replace(/^\/watch\//, "").replace(/^\/+/, "");
         const style = $(element).find(".season-poster").attr("style") || "";
         const posterMatch = style.match(/url\((.*?)\)/);
         const season_poster = posterMatch ? posterMatch[1] : "";

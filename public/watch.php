@@ -43,6 +43,29 @@ $pageTitle = ($type === 'tv')
     ? e($title) . ' &ndash; S' . $season . 'E' . $episode
     : e($title);
 
+// ── TV: seasons list + current season episodes + prev/next ep ─────────────────
+$tvSeasons   = [];
+$tvEpisodes  = [];
+$prevEpisode = null;
+$nextEpisode = null;
+
+if ($type === 'tv') {
+    $allSeasons = array_filter($meta['seasons'] ?? [], fn($s) => (int)$s['season_number'] > 0);
+    $tvSeasons  = array_values($allSeasons);
+    $seasonData = $api->tvSeason($id, $season);
+    $tvEpisodes = $seasonData['episodes'] ?? [];
+
+    $epNums = array_map('intval', array_column($tvEpisodes, 'episode_number'));
+    $pos    = array_search($episode, $epNums, true);
+    if ($pos !== false) {
+        if ($pos > 0)                    $prevEpisode = $epNums[$pos - 1];
+        if ($pos < count($epNums) - 1)  $nextEpisode = $epNums[$pos + 1];
+    } else {
+        if ($episode > 1)  $prevEpisode = $episode - 1;
+        $nextEpisode = $episode + 1;
+    }
+}
+
 // ── Build embed URL sets for both modes ───────────────────────────────────────
 // Sub  = ds_lang={origLang}  → original audio + subtitles  (vidsrc.me family)
 // Dub  = ds_lang=en          → English dubbed audio         (vidsrc.me family)
@@ -63,141 +86,7 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= $pageTitle ?> &ndash; <?= e(SITE_NAME) ?></title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
-  <style>
-    html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
-
-    .player-page   { display: flex; flex-direction: column; height: 100vh; background: #000; }
-
-    /* ── Top bar ── */
-    .player-topbar {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      padding: 0 1rem;
-      height: 48px;
-      flex-shrink: 0;
-      background: rgba(0,0,0,0.9);
-      z-index: 10;
-    }
-
-    .player-back {
-      font-size: 1.25rem;
-      color: #fff;
-      opacity: 0.7;
-      text-decoration: none;
-      flex-shrink: 0;
-      transition: opacity .15s;
-    }
-    .player-back:hover { opacity: 1; }
-
-    .player-title {
-      flex: 1;
-      font-size: 0.85rem;
-      color: #b3b3b3;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    /* ── Sub / Dub toggle ── */
-    .lang-toggle {
-      display: flex;
-      gap: 0;
-      flex-shrink: 0;
-      border: 1px solid #444;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .lang-btn {
-      background: #1a1a1a;
-      color: #888;
-      border: none;
-      padding: 4px 12px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: .5px;
-      cursor: pointer;
-      transition: background .15s, color .15s;
-    }
-    .lang-btn + .lang-btn { border-left: 1px solid #444; }
-    .lang-btn:hover       { background: #2a2a2a; color: #ccc; }
-    .lang-btn.active      { background: #E50914; color: #fff; border-color: #E50914; }
-
-    /* ── Source buttons ── */
-    .source-btns {
-      display: flex;
-      gap: 3px;
-      flex-shrink: 0;
-    }
-
-    .src-btn {
-      background: #1a1a1a;
-      color: #666;
-      border: 1px solid #333;
-      border-radius: 3px;
-      padding: 3px 8px;
-      font-size: 0.7rem;
-      cursor: pointer;
-      transition: background .15s, color .15s;
-    }
-    .src-btn:hover    { background: #2a2a2a; color: #ccc; }
-    .src-btn.active   { background: #E50914; border-color: #E50914; color: #fff; }
-    .src-btn.checking { opacity: .35; cursor: default; }
-
-    /* ── Status bar ── */
-    .player-status {
-      text-align: center;
-      font-size: 0.7rem;
-      color: #444;
-      padding: 3px 0;
-      flex-shrink: 0;
-      background: #000;
-      min-height: 18px;
-    }
-
-    /* ── Iframe area ── */
-    .player-frame-wrap {
-      flex: 1;
-      position: relative;
-      background: #000;
-    }
-
-    .player-frame-wrap iframe {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
-    /* ── Loading overlay ── */
-    .player-loading {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #000;
-      color: #555;
-      font-size: 0.85rem;
-      z-index: 5;
-      pointer-events: none;
-      transition: opacity .3s;
-    }
-    .player-loading.hidden { opacity: 0; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      width: 28px; height: 28px;
-      border: 3px solid #222;
-      border-top-color: #E50914;
-      border-radius: 50%;
-      animation: spin .75s linear infinite;
-      margin-right: 10px;
-      flex-shrink: 0;
-    }
-  </style>
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/player.css">
 </head>
 <body>
 
@@ -213,6 +102,9 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
         &mdash; S<?= $season ?>E<?= $episode ?>
       <?php endif; ?>
     </span>
+
+    <!-- Mobile row break: controls go to second line -->
+    <div class="player-topbar-break" aria-hidden="true"></div>
 
     <!-- Sub / Dub language toggle -->
     <div class="lang-toggle" id="lang-toggle">
@@ -240,6 +132,23 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
         ><?= e($src['label']) ?></button>
       <?php endforeach; ?>
     </div>
+
+    <?php if ($type === 'tv'): ?>
+    <!-- Episode navigation -->
+    <nav class="ep-nav">
+      <?php if ($prevEpisode !== null): ?>
+        <a href="<?= e(tvWatchUrl($id, $season, $prevEpisode)) ?>" title="Previous episode">&#8592; Ep.<?= $prevEpisode ?></a>
+      <?php else: ?>
+        <span>&#8592; Prev</span>
+      <?php endif; ?>
+      <?php if ($nextEpisode !== null): ?>
+        <a href="<?= e(tvWatchUrl($id, $season, $nextEpisode)) ?>" title="Next episode">Ep.<?= $nextEpisode ?> &#8594;</a>
+      <?php else: ?>
+        <span>Next &#8594;</span>
+      <?php endif; ?>
+    </nav>
+    <button class="ep-toggle-btn" id="ep-panel-toggle" title="Episode list">&#9776; Episodes</button>
+    <?php endif; ?>
   </div>
 
   <!-- Status line -->
@@ -252,16 +161,95 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     </div>
     <iframe
       id="player-iframe"
-      src=""
+      src="about:blank"
       frameborder="0"
       allowfullscreen
       referrerpolicy="origin"
-      allow="autoplay; fullscreen; picture-in-picture"
+      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
       scrolling="no"
     ></iframe>
   </div>
 
 </div>
+
+<?php if ($type === 'tv'): ?>
+<!-- ── TV Episode panel ──────────────────────────────────────────────────────── -->
+<div class="ep-panel" id="ep-panel">
+  <div class="ep-panel__head">
+    <span class="ep-panel__head-title">Episodes</span>
+    <?php if (!empty($tvSeasons)): ?>
+    <select class="ep-panel__season-sel" id="ep-panel-season">
+      <?php foreach ($tvSeasons as $s): ?>
+        <option
+          value="<?= e(BASE_URL . '/watch.php?type=tv&id=' . $id . '&s=' . (int)$s['season_number'] . '&e=1') ?>"
+          <?= (int)$s['season_number'] === $season ? 'selected' : '' ?>
+        >S<?= (int)$s['season_number'] ?><?= !empty($s['episode_count']) ? ' (' . (int)$s['episode_count'] . ' eps)' : '' ?></option>
+      <?php endforeach; ?>
+    </select>
+    <?php endif; ?>
+    <button class="ep-panel__close" id="ep-panel-close" title="Close">&#10005;</button>
+  </div>
+  <div class="ep-panel__list" id="ep-panel-list">
+    <?php if (!empty($tvEpisodes)): ?>
+      <?php foreach ($tvEpisodes as $ep): ?>
+        <?php
+          $epN     = (int)($ep['episode_number'] ?? 0);
+          $epT     = $ep['name'] ?? 'Episode ' . $epN;
+          $epUrl   = tvWatchUrl($id, $season, $epN);
+          $isCurr  = $epN === $episode;
+          $epThumb = !empty($ep['still_path']) ? stillUrl($ep['still_path']) : null;
+        ?>
+        <a href="<?= e($epUrl) ?>" class="ep-panel__item<?= $isCurr ? ' ep-panel__item--current' : '' ?>">
+          <div class="ep-panel__thumb<?= $epThumb ? '' : ' ep-panel__thumb--blank' ?>">
+            <?php if ($epThumb): ?>
+              <img src="<?= e($epThumb) ?>" alt="" loading="lazy">
+            <?php endif; ?>
+            <?php if ($isCurr): ?><div class="ep-panel__now">&#9654;</div><?php endif; ?>
+          </div>
+          <div class="ep-panel__info">
+            <span class="ep-panel__num">Ep <?= $epN ?></span>
+            <span class="ep-panel__title"><?= e(truncate($epT, 40)) ?></span>
+          </div>
+        </a>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <p class="ep-panel__empty">No episode data available.</p>
+    <?php endif; ?>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const panel     = document.getElementById('ep-panel');
+  const toggleBtn = document.getElementById('ep-panel-toggle');
+  const closeBtn  = document.getElementById('ep-panel-close');
+  const seasonSel = document.getElementById('ep-panel-season');
+  const frameWrap = document.querySelector('.player-frame-wrap');
+  if (!panel || !toggleBtn) return;
+
+  function openPanel()  {
+    panel.classList.add('open');
+    toggleBtn.classList.add('active');
+    if (frameWrap) frameWrap.classList.add('panel-open');
+    const cur = document.querySelector('.ep-panel__item--current');
+    if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+  }
+  function closePanel() {
+    panel.classList.remove('open');
+    toggleBtn.classList.remove('active');
+    if (frameWrap) frameWrap.classList.remove('panel-open');
+  }
+
+  toggleBtn.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
+  if (closeBtn) closeBtn.addEventListener('click', closePanel);
+
+  if (seasonSel) {
+    seasonSel.addEventListener('change', () => { if (seasonSel.value) window.location.href = seasonSel.value; });
+  }
+})();
+</script>
+<?php endif; ?>
 
 <script>
 (function () {
@@ -299,8 +287,11 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     langBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 
     loading.classList.remove('hidden');
-    iframe.src = '';
-    requestAnimationFrame(() => { iframe.src = src.url; });
+    // Use about:blank + small delay instead of '' so browsers don't
+    // navigate to the current page URL, which would break the autoplay
+    // user-interaction context.
+    iframe.src = 'about:blank';
+    setTimeout(() => { iframe.src = src.url; }, 50);
 
     const modeLabel = mode === 'sub' ? 'Original audio' : 'English (DUB)';
     status.textContent = src.label + ' · ' + modeLabel + ' · ' + domainOf(src.url) + '…';

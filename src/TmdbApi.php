@@ -20,15 +20,17 @@ class TmdbApi
      * Build full URL and perform the HTTP request via cURL.
      * Returns decoded array or [] on failure.
      */
-    private function fetch(string $endpoint, array $params = []): array
+    private function fetch(string $endpoint, array $params = [], int $attempt = 1): array
     {
+        $originalParams = $params;  // save before adding internal keys for retry
+
         $params['api_key']  = $this->key;
         $params['language'] = 'en-US';
         $url = TMDB_BASE . $endpoint . '?' . http_build_query($params);
 
         // On XAMPP/Windows, point cURL at the bundled CA cert.
-        // Falls back to disabling peer verification if the bundle is missing.
-        $caBundle = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
+        $caBundle  = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
+        $verifySsl = file_exists($caBundle);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -36,17 +38,43 @@ class TmdbApi
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-            CURLOPT_SSL_VERIFYPEER => file_exists($caBundle),
-            CURLOPT_SSL_VERIFYHOST => file_exists($caBundle) ? 2 : 0,
-            CURLOPT_CAINFO         => file_exists($caBundle) ? $caBundle : null,
+            CURLOPT_SSL_VERIFYPEER => $verifySsl,
+            CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
+            CURLOPT_CAINFO         => $verifySsl ? $caBundle : null,
+            // Capture response headers to read Retry-After on 429
+            CURLOPT_HEADER         => true,
         ]);
-        $body  = curl_exec($ch);
+        $raw   = curl_exec($ch);
         $errno = curl_errno($ch);
-        curl_close($ch);
+        $info  = curl_getinfo($ch);
+        // curl_close() is deprecated since PHP 8.5; the handle is freed on unset/GC
+        unset($ch);
 
-        if ($errno || $body === false || $body === '') {
+        if ($errno || $raw === false || $raw === '') {
             return [];
         }
+
+        // Split response headers from body
+        $headerSize = $info['header_size'];
+        $body       = substr($raw, $headerSize);
+        $httpCode   = $info['http_code'];
+
+        // Handle TMDB rate-limiting (429) — retry up to 3 times with backoff
+        if ($httpCode === 429 && $attempt <= 3) {
+            $headerSection = substr($raw, 0, $headerSize);
+            if (preg_match('/Retry-After:\s*(\d+)/i', $headerSection, $m)) {
+                $retryAfter = max(1, (int)$m[1]);
+            } else {
+                $retryAfter = $attempt; // exponential backoff: 1s, 2s, 3s
+            }
+            sleep($retryAfter);
+            return $this->fetch($endpoint, $originalParams, $attempt + 1);
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            return [];
+        }
+
         return json_decode($body, true) ?? [];
     }
 

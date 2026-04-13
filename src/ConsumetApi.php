@@ -2,25 +2,17 @@
 declare(strict_types=1);
 
 /**
- * HiAnime API wrapper (JustAnimeCore/HiAnime-Api).
+ * HiAnime API wrapper (self-hosted, port 4444).
  *
- * Self-hosted Node.js scraper that does NOT depend on the DMCA'd consumet.ts.
- * Source: https://github.com/JustAnimeCore/HiAnime-Api
- * Setup:  cd services/hianime-api && npm install && npm start  (port 4444)
- *
- * Set CONSUMET_URL=http://localhost:4444 in .env
+ * Each MAL entry is already one season on HiAnime — no multi-season offset
+ * arithmetic needed. stream.php always passes episode=N relative to the MAL
+ * entry, and season is always effectively 1.
  *
  * Endpoint reference:
  *   Search   : GET /api/search?keyword={query}
  *   Episodes : GET /api/episodes/{animeId}
  *   Stream   : GET /api/stream?id={episodeId}&server=HD-1&type=sub|dub
- *
- * Response shapes:
- *   Search   : { data: [{ id, title, japanese_title, ... }], totalPage }
- *   Episodes : { totalEpisodes, episodes: [{ episode_no, id, title, filler }] }
- *   Stream   : { streamingLink: [{ link, type, server }], tracks: [...] }
- *
- * Metadata calls are file-cached. Stream calls are NEVER cached (expiring tokens).
+ *   Fallback : GET /api/stream/fallback?id={episodeId}&server=HD-1&type=sub|dub
  */
 class ConsumetApi
 {
@@ -28,7 +20,7 @@ class ConsumetApi
 
     public function __construct()
     {
-        $this->base = CONSUMET_URL;  // http://localhost:4444
+        $this->base = CONSUMET_URL;
     }
 
     // ── Internal HTTP ─────────────────────────────────────────────────────────
@@ -40,19 +32,23 @@ class ConsumetApi
             $url .= '?' . http_build_query($params);
         }
 
+        $isLocalhost = in_array(parse_url($url, PHP_URL_HOST), ['localhost', '127.0.0.1', '::1'], true);
+        $caBundle    = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
+        $verifySsl   = !$isLocalhost && file_exists($caBundle);
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTPHEADER     => ['Accept: application/json', 'User-Agent: StreamFlix/1.0'],
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => $verifySsl,
+            CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
+            CURLOPT_CAINFO         => $verifySsl ? $caBundle : null,
         ]);
 
         $body  = curl_exec($ch);
         $errno = curl_errno($ch);
-
         if ($errno || !$body) return [];
         $decoded = json_decode($body, true);
         return is_array($decoded) ? $decoded : [];
@@ -62,7 +58,7 @@ class ConsumetApi
     {
         $file = CACHE_DIR . '/hianime_' . md5($path . serialize($params)) . '.json';
 
-        if (file_exists($file) && (time() - filemtime($file)) < CACHE_TTL) {
+        if (file_exists($file) && time() - filemtime($file) < CACHE_TTL) {
             $cached = json_decode(file_get_contents($file), true);
             if (is_array($cached)) return $cached;
         }
@@ -76,42 +72,22 @@ class ConsumetApi
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /**
-     * Search HiAnime for an anime by title.
-     * Returns: [['id' => 'one-piece-100', 'title' => '...', 'japanese_title' => '...'], ...]
-     */
     public function search(string $query): array
     {
-        // Response shape: { success, results: { data: [...], totalPage } }
         $data = $this->cachedFetch('/api/search', ['keyword' => $query]);
         return $data['results']['data'] ?? [];
     }
 
-    /**
-     * Get the full episode list for a HiAnime anime ID (e.g. "one-piece-100").
-     * Returns: ['totalEpisodes' => N, 'episodes' => [['episode_no' => 1, 'id' => 'one-piece-100?ep=107149', ...]]]
-     */
     public function animeEpisodes(string $hiAnimeId): array
     {
-        // Response shape: { success, results: { totalEpisodes, episodes: [...] } }
         $data = $this->cachedFetch('/api/episodes/' . rawurlencode($hiAnimeId));
         return $data['results'] ?? [];
     }
 
-    /**
-     * Get streaming sources for a specific episode.
-     * NOT cached — URLs contain expiring tokens.
-     *
-     * $episodeId : full episode ID, e.g. "one-piece-100?ep=107149"
-     * $category  : 'sub' | 'dub'
-     * $server    : 'HD-1' (Megacloud) | 'HD-2' (VidStreaming) | 'HD-3'
-     *
-     * Returns: { streamingLink: [{ link: '...m3u8', type: 'hls' }], tracks: [...] }
-     */
-    public function episodeSources(string $episodeId, string $category = 'sub', string $server = 'HD-1'): array
+    public function episodeSources(string $episodeId, string $category = 'sub', string $server = 'HD-1', bool $fallback = false): array
     {
-        // Response shape: { success, results: { streamingLink, tracks, servers, ... } }
-        $data = $this->fetch('/api/stream', [
+        $endpoint = $fallback ? '/api/stream/fallback' : '/api/stream';
+        $data = $this->fetch($endpoint, [
             'id'     => $episodeId,
             'server' => $server,
             'type'   => $category,
@@ -121,86 +97,158 @@ class ConsumetApi
 
     /**
      * Find the best-matching HiAnime anime ID for a given title.
-     * Tries English title first, falls back to Japanese.
+     *
+     * When $year is provided the function first searches with the year-tagged
+     * MAL title (e.g. "Hunter x Hunter (2011)") — HiAnime's search engine ranks
+     * the correct version first even though it doesn't put the year in its titles.
+     *
+     * Priority:
+     *   1. Exact match on year-tagged secondary title
+     *   2. Year present in result title
+     *   3. First non-OVA/special result from year-tagged search (HiAnime ranking)
+     *   4. Exact English title match (year-agnostic)
+     *   5. First English search result
+     *   6. First Japanese/secondary title result
      */
-    public function findAnimeId(string $titleEnglish, string $titleJapanese = ''): ?string
+    public function findAnimeId(string $titleEnglish, string $titleJapanese = '', int $year = 0): ?string
     {
+        $englishLower = strtolower($titleEnglish);
+        $yearStr      = $year > 0 ? (string)$year : '';
+        $skipWords    = ['ova', 'special', 'movie', 'film', 'greed island', 'original video'];
+
+        // ── Secondary title exact-match fast path ─────────────────────────────
+        // The MAL "title" field (Japanese/romaji) often matches HiAnime's entry
+        // title directly even when the English title doesn't — e.g.:
+        //   MAL title  = "One Punch Man 2nd Season"
+        //   HiAnime    = "One Punch Man 2nd Season"   ← exact match
+        //   MAL english= "One-Punch Man Season 2"     ← would miss
+        // Try this before any English title search.
+        if ($titleJapanese && $titleJapanese !== $titleEnglish) {
+            $jpLower = strtolower($titleJapanese);
+            $results = $this->search($titleJapanese);
+            foreach ($results as $result) {
+                if (strtolower($result['title'] ?? '') === $jpLower) {
+                    return $result['id'] ?? null;
+                }
+            }
+        }
+
+        // ── Year-aware fast path ──────────────────────────────────────────────
+        if ($year > 0 && $titleJapanese && str_contains($titleJapanese, $yearStr)) {
+            $results = $this->search($titleJapanese);
+
+            // Exact match on year-tagged title
+            $jpLower = strtolower($titleJapanese);
+            foreach ($results as $result) {
+                if (strtolower($result['title'] ?? '') === $jpLower) {
+                    return $result['id'] ?? null;
+                }
+            }
+            // Year present in result title
+            foreach ($results as $result) {
+                if (str_contains(strtolower($result['title'] ?? ''), $yearStr)) {
+                    return $result['id'] ?? null;
+                }
+            }
+            // First result whose title matches the base English title, skipping OVAs
+            foreach ($results as $result) {
+                $t = strtolower($result['title'] ?? '');
+                if ($t !== $englishLower) continue;
+                $skip = false;
+                foreach ($skipWords as $sw) {
+                    if (str_contains($t, $sw)) { $skip = true; break; }
+                }
+                if (!$skip) return $result['id'] ?? null;
+            }
+        }
+
+        // ── Bare English title search ─────────────────────────────────────────
         $results = $this->search($titleEnglish);
 
-        // Prefer exact English title match
-        $englishLower = strtolower($titleEnglish);
+        if ($year > 0) {
+            $withYear = $englishLower . ' (' . $yearStr . ')';
+            foreach ($results as $result) {
+                if (strtolower($result['title'] ?? '') === $withYear) {
+                    return $result['id'] ?? null;
+                }
+            }
+            foreach ($results as $result) {
+                $t = strtolower($result['title'] ?? '');
+                if (str_contains($t, $englishLower) && str_contains($t, $yearStr)) {
+                    return $result['id'] ?? null;
+                }
+            }
+            $yearResults = $this->search($titleEnglish . ' ' . $yearStr);
+            foreach ($yearResults as $result) {
+                if (str_contains(strtolower($result['title'] ?? ''), $yearStr)) {
+                    return $result['id'] ?? null;
+                }
+            }
+        }
+
+        // Exact English title match (year-agnostic)
         foreach ($results as $result) {
             if (strtolower($result['title'] ?? '') === $englishLower) {
                 return $result['id'] ?? null;
             }
         }
-
-        // Fall back to first result from English search
         if (!empty($results)) {
             return $results[0]['id'] ?? null;
         }
-
-        // Try Japanese title if English search returned nothing
         if ($titleJapanese && $titleJapanese !== $titleEnglish) {
             $results = $this->search($titleJapanese);
-            if (!empty($results)) {
-                return $results[0]['id'] ?? null;
-            }
+            if (!empty($results)) return $results[0]['id'] ?? null;
         }
 
         return null;
     }
 
     /**
-     * High-level: resolve a complete stream payload for an episode.
+     * Given a HiAnime ID and episode number, return the resolved stream payload.
      *
-     * Return shape on success:
-     * [
-     *   'm3u8'      => 'https://...master.m3u8',
-     *   'headers'   => ['Referer' => '...'],
-     *   'subtitles' => [['url' => '...vtt', 'lang' => 'English'], ...],
-     * ]
+     * Episode matching:
+     *   1. By episode_no field (relative numbering, e.g. 1-12)
+     *   2. By array position ($episodeNo-1) for shows with absolute/continuous numbering
+     *
+     * Source fallback: HD-1 → HD-2 → /api/stream/fallback
      */
-    public function resolveStream(
-        string $titleEnglish,
-        string $titleJapanese,
-        int    $episodeNumber,
-        string $category = 'sub'
-    ): ?array {
-        $hiAnimeId = $this->findAnimeId($titleEnglish, $titleJapanese);
-        if (!$hiAnimeId) return null;
-
+    private function getStreamFromId(string $hiAnimeId, int $episodeNo, string $category): ?array
+    {
         $epData   = $this->animeEpisodes($hiAnimeId);
         $episodes = $epData['episodes'] ?? [];
         if (empty($episodes)) return null;
 
-        // Find the episode matching the requested number
+        // Match by episode_no value
         $targetEpisode = null;
         foreach ($episodes as $ep) {
-            if ((int)($ep['episode_no'] ?? 0) === $episodeNumber) {
+            if ((int)($ep['episode_no'] ?? 0) === $episodeNo) {
                 $targetEpisode = $ep;
                 break;
             }
         }
+
+        // Fallback: match by array position (handles absolute/continuous numbering)
+        if (!$targetEpisode && $episodeNo >= 1 && isset($episodes[$episodeNo - 1])) {
+            $targetEpisode = $episodes[$episodeNo - 1];
+        }
+
         if (!$targetEpisode) return null;
 
-        // Episode ID is the full "one-piece-100?ep=107149" string
         $episodeId = $targetEpisode['id'] ?? null;
         if (!$episodeId) return null;
 
-        // Try HD-1 first, fall back to HD-2 if no stream is returned
+        // Try HD-1 → HD-2 → fallback server
         $sources = $this->episodeSources($episodeId, $category, 'HD-1');
         if (empty($sources['streamingLink'])) {
             $sources = $this->episodeSources($episodeId, $category, 'HD-2');
         }
+        if (empty($sources['streamingLink'])) {
+            $sources = $this->episodeSources($episodeId, $category, 'HD-1', true);
+        }
 
-        $streamingLinks = $sources['streamingLink'] ?? [];
-        if (empty($streamingLinks)) return null;
-
-        $m3u8Url = $streamingLinks[0]['link'] ?? null;
+        $m3u8Url = $sources['streamingLink'][0]['link'] ?? null;
         if (!$m3u8Url) return null;
 
-        // Normalize subtitle tracks — skip sprite thumbnail tracks
         $subtitles = [];
         foreach ($sources['tracks'] ?? [] as $track) {
             $kind  = strtolower($track['kind']  ?? 'subtitles');
@@ -214,9 +262,30 @@ class ConsumetApi
 
         return [
             'm3u8'      => $m3u8Url,
-            // HiAnime streams go through Megacloud CDN — this referer is required
             'headers'   => ['Referer' => 'https://megacloud.club/'],
             'subtitles' => $subtitles,
         ];
+    }
+
+    /**
+     * Resolve a complete stream payload for an episode.
+     *
+     * Since each MAL entry = one HiAnime show, this is straightforward:
+     * find the HiAnime ID for the title, look up episode N.
+     *
+     * $year disambiguates remakes that share the same English title
+     * (e.g. "Hunter x Hunter" 1999 vs 2011).
+     */
+    public function resolveStream(
+        string $titleEnglish,
+        string $titleJapanese,
+        int    $episodeNumber,
+        string $category = 'sub',
+        int    $year = 0
+    ): ?array {
+        $hiAnimeId = $this->findAnimeId($titleEnglish, $titleJapanese, $year);
+        if (!$hiAnimeId) return null;
+
+        return $this->getStreamFromId($hiAnimeId, $episodeNumber, $category);
     }
 }

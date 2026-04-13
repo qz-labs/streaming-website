@@ -1,14 +1,32 @@
 <footer class="site-footer">
-  <div class="footer-inner">
-    <nav class="footer-links">
-      <a href="<?= BASE_URL ?>/">Home</a>
-      <a href="<?= BASE_URL ?>/anime.php">Anime</a>
-      <a href="<?= BASE_URL ?>/search.php">Search</a>
-    </nav>
-    <p><?= SITE_NAME ?> &mdash; For entertainment purposes.</p>
-    <p style="margin-top:6px;">
-      This product uses the <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB API</a>
-      but is not endorsed or certified by TMDB.
-    </p>
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>Browse</h4>
+      <ul>
+        <li><a href="<?= BASE_URL ?>/">Home</a></li>
+        <li><a href="<?= BASE_URL ?>/#movies">Movies</a></li>
+        <li><a href="<?= BASE_URL ?>/#tv">TV Shows</a></li>
+        <li><a href="<?= BASE_URL ?>/anime.php">Anime</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Discover</h4>
+      <ul>
+        <li><a href="<?= BASE_URL ?>/search.php">Search</a></li>
+        <li><a href="<?= BASE_URL ?>/#movies">Trending Movies</a></li>
+        <li><a href="<?= BASE_URL ?>/#tv">Trending TV</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Info</h4>
+      <ul>
+        <li><a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a></li>
+        <li><a href="https://myanimelist.net/" target="_blank" rel="noopener">MyAnimeList</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p><?= SITE_NAME ?> &mdash; For entertainment purposes only.</p>
+    <p>Data provided by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> &amp; <a href="https://jikan.moe/" target="_blank" rel="noopener">Jikan</a>. Not affiliated with or endorsed by these services.</p>
   </div>
 </footer>

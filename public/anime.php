@@ -14,7 +14,30 @@ $topSp     = $jikan->topAnime('special', 'bypopularity');
 
 // Pick a hero from seasonal anime that has an image
 $heroPool = array_values(array_filter($seasonal, fn($a) => !empty($a['images']['jpg']['large_image_url'])));
-$hero     = !empty($heroPool) ? $heroPool[array_rand($heroPool)] : ($topTv[0] ?? null);
+$hero     = !empty($heroPool) ? $heroPool[0] : ($topTv[0] ?? null);
+
+// Carousel slides (up to 5)
+$heroSlides = array_map(function ($a) {
+    $malId = (int)($a['mal_id'] ?? 0);
+    return [
+        'backdrop'  => jikanImg($a['images'] ?? [], 'large'),
+        'title'     => $a['title_english'] ?: ($a['title'] ?? ''),
+        'overview'  => truncate($a['synopsis'] ?? '', 160),
+        'watchUrl'  => animeWatchUrl($malId, 1),
+        'detailUrl' => animeDetailUrl($malId),
+        'rating'    => isset($a['score']) && $a['score'] > 0 ? ratingBadge((float)$a['score']) : '',
+        'year'      => yearFromDate($a['aired']['from'] ?? null),
+    ];
+}, array_slice($heroPool, 0, 5));
+
+// Anime genre pills (Jikan genre objects have mal_id + name)
+$usedAnimeGenres = [];
+foreach (array_merge($seasonal, $topTv, $topMovies) as $a) {
+    foreach ($a['genres'] ?? [] as $g) {
+        $usedAnimeGenres[(int)$g['mal_id']] = $g['name'];
+    }
+}
+asort($usedAnimeGenres);
 
 $activePage = 'anime';
 ?>
@@ -26,11 +49,8 @@ $activePage = 'anime';
   <title>Anime &ndash; <?= e(SITE_NAME) ?></title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
   <style>
-    /* Anime hero uses backdrop from Jikan (no TMDB backdrop here) */
-    .anime-hero-bg {
-      background-size: cover;
-      background-position: center top;
-    }
+    /* Anime hero: portrait poster blurred as bg */
+    .anime-hero-bg { background: #060010; }
   </style>
 </head>
 <body>
@@ -48,9 +68,12 @@ $activePage = 'anime';
     $heroType = $hero['type'] ?? 'TV';
   ?>
   <section
-    class="hero anime-hero anime-hero-bg"
-    style="background-image: url('<?= e($heroBg) ?>')"
+    class="hero anime-hero anime-hero-bg hero--anime-portrait"
+    data-slides="<?= e(json_encode($heroSlides)) ?>"
   >
+    <div class="hero__bg">
+      <img src="<?= e($heroBg) ?>" alt="" referrerpolicy="no-referrer" aria-hidden="true">
+    </div>
     <div class="hero__content">
       <span class="hero__badge">&#9654; <?= $heroType === 'TV' ? 'Airing Now' : e($heroType) ?></span>
       <h1 class="hero__title"><?= e($heroName) ?></h1>
@@ -68,6 +91,18 @@ $activePage = 'anime';
       </div>
     </div>
   </section>
+<?php endif; ?>
+
+<?php if (!empty($usedAnimeGenres)): ?>
+<div class="genre-section">
+  <span class="genre-section__label">Browse by Genre</span>
+  <div class="genre-filters" role="group" aria-label="Filter by genre">
+    <button class="genre-pill active" data-genre-id="all">All</button>
+    <?php foreach ($usedAnimeGenres as $gid => $gname): ?>
+      <button class="genre-pill" data-genre-id="<?= $gid ?>"><?= e($gname) ?></button>
+    <?php endforeach; ?>
+  </div>
+</div>
 <?php endif; ?>
 
 <main class="rows-container">

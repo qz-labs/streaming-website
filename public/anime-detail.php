@@ -3,7 +3,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/JikanApi.php';
-require_once __DIR__ . '/../src/TmdbApi.php';
 
 $malId = intval($_GET['mal_id'] ?? 0);
 if ($malId <= 0) {
@@ -12,15 +11,15 @@ if ($malId <= 0) {
 }
 
 $jikan = new JikanApi();
-$tmdb  = new TmdbApi();
 
+// ── Fetch Jikan anime metadata (cached) ──────────────────────────────────────
 $anime = $jikan->animeDetails($malId);
 
 if (empty($anime)) {
     http_response_code(404);
     $activePage = 'anime';
     require __DIR__ . '/partials/nav.php';
-    echo '<main style="padding:4rem 4%"><h1>Anime not found</h1></main>';
+    echo '<main style="padding:4rem 4%"><h1>Anime not found</h1><p style="color:var(--text-muted);margin-top:.5rem;">The requested anime could not be loaded. It may no longer exist on MyAnimeList, or the API may be temporarily unavailable. <a href="' . BASE_URL . '/anime.php" style="color:var(--red)">Back to Anime</a></p></main>';
     require __DIR__ . '/partials/footer.php';
     exit;
 }
@@ -29,7 +28,7 @@ if (empty($anime)) {
 $title        = $anime['title_english'] ?: ($anime['title'] ?? 'Unknown');
 $titleJp      = $anime['title'] ?? '';
 $synopsis     = $anime['synopsis'] ?? '';
-$type         = $anime['type'] ?? 'TV';          // TV / Movie / OVA / Special / ONA
+$type         = $anime['type'] ?? 'TV';
 $status       = $anime['status'] ?? '';
 $episodeCount = (int)($anime['episodes'] ?? 0);
 $duration     = $anime['duration'] ?? '';
@@ -44,51 +43,38 @@ $poster       = jikanImg($anime['images'] ?? [], 'large');
 $trailer      = $anime['trailer']['url'] ?? '';
 $typeBadge    = animeTypeBadge($type);
 
-// ── Map to TMDB for vidsrc streaming ─────────────────────────────────────────
-$tmdbMap  = $tmdb->findAnimeTmdbId(
-    $malId,
-    $anime['title'] ?? '',
-    $anime['title_english'] ?? '',
-    $type
-);
-$tmdbId   = $tmdbMap ? (int)$tmdbMap['tmdb_id'] : 0;
-$tmdbType = $tmdbMap ? $tmdbMap['type'] : 'tv';   // 'tv' or 'movie'
+// ── Sequel chain (MAL-based season navigation) ────────────────────────────────
+// Each MAL entry is already one season. sequelChain() walks Sequel relations
+// to build an ordered list. This replaces the TMDB season selector entirely.
+$isMovie      = in_array(strtoupper($type), ['MOVIE'], true);
+$sequelChain  = (!$isMovie) ? $jikan->sequelChain($malId) : [];
 
-// If TMDB found, get season data for TV shows
-$seasons    = [];
-$currentSeason = intval($_GET['season'] ?? 1);
-if ($tmdbId > 0 && $tmdbType === 'tv') {
-    $showData = $tmdb->tvDetails($tmdbId);
-    $seasons  = array_values(array_filter(
-        $showData['seasons'] ?? [],
-        fn($s) => (int)$s['season_number'] > 0
-    ));
-    // Clamp season to valid range
-    $validSeasons = array_column($seasons, 'season_number');
-    if (!in_array($currentSeason, $validSeasons, true) && !empty($validSeasons)) {
-        $currentSeason = (int)$validSeasons[0];
-    }
-    $seasonData = $tmdb->tvSeason($tmdbId, $currentSeason);
-    $episodes   = $seasonData['episodes'] ?? [];
-} else {
-    $episodes = [];
+// Find which position in the chain this MAL ID occupies (= current season index)
+$currentChainIdx = 0;
+foreach ($sequelChain as $i => $s) {
+    if ((int)$s['mal_id'] === $malId) { $currentChainIdx = $i; break; }
 }
 
-// For movies, watch URL goes directly to the HLS anime player (episode 1 = full movie)
-$movieWatchUrl = ($anime['type'] === 'Movie' || ($tmdbId > 0 && $tmdbType === 'movie'))
-    ? animeWatchUrl($malId, 1)
-    : '';
+// ── Episodes from Jikan for the current MAL entry ─────────────────────────────
+$episodes   = [];
+$thumbs     = [];
+if (!$isMovie && $episodeCount > 0) {
+    $episodes = $jikan->allAnimeEpisodes($malId);
+    $thumbs   = $jikan->episodeThumbnails($malId);
+}
 
-// Episode watch URL builder — always uses the HLS anime player now
+// ── Watch URLs ────────────────────────────────────────────────────────────────
 $firstEpUrl = '';
-if (!empty($episodes)) {
-    $firstEpNum = (int)($episodes[0]['episode_number'] ?? 1);
+if ($isMovie) {
+    $firstEpUrl = animeWatchUrl($malId, 1);
+} elseif (!empty($episodes)) {
+    $firstEpNum = (int)($episodes[0]['mal_id'] ?? 1);
     $firstEpUrl = animeWatchUrl($malId, $firstEpNum);
-} elseif ($tmdbId === 0 && $episodeCount > 0) {
-    // No TMDB episodes but Jikan knows there are episodes — link to ep 1 anyway
+} elseif ($episodeCount > 0) {
     $firstEpUrl = animeWatchUrl($malId, 1);
 }
 
+$today      = date('Y-m-d');
 $activePage = 'anime';
 ?>
 <!DOCTYPE html>
@@ -99,7 +85,6 @@ $activePage = 'anime';
   <title><?= e($title) ?> &ndash; <?= e(SITE_NAME) ?></title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
   <style>
-    /* Anime detail hero uses poster as bg (no TMDB backdrop) */
     .anime-detail-hero {
       background: linear-gradient(135deg, #0d0017 0%, #141414 60%);
     }
@@ -155,16 +140,12 @@ $activePage = 'anime';
       <?php endif; ?>
 
       <div class="detail-buttons">
-        <?php if ($tmdbId > 0 && $tmdbType === 'movie'): ?>
-          <a class="btn btn-play" href="<?= e($movieWatchUrl) ?>">&#9654; Watch Movie</a>
-        <?php elseif ($tmdbId > 0 && $firstEpUrl): ?>
-          <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; Play S<?= $currentSeason ?>E1</a>
-        <?php elseif ($firstEpUrl): ?>
-          <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; Play Episode 1</a>
+        <?php if ($firstEpUrl): ?>
+          <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; <?= $isMovie ? 'Watch Movie' : 'Play Episode 1' ?></a>
         <?php else: ?>
-          <span class="btn btn-info" style="cursor:default;opacity:.5;" title="Could not find episode data">&#9888; Stream unavailable</span>
+          <span class="btn btn-info" style="cursor:default;opacity:.5;">&#9888; Stream unavailable</span>
         <?php endif; ?>
-        <a class="btn btn-info" href="<?= e(BASE_URL . '/anime.php') ?>">&#8592; Back to Anime</a>
+        <a class="btn btn-info" href="<?= e(BASE_URL . '/anime.php') ?>" id="detail-back-btn">&#8592; Back</a>
         <?php if ($trailer): ?>
           <a class="btn btn-info" href="<?= e($trailer) ?>" target="_blank" rel="noopener">&#9654; Trailer</a>
         <?php endif; ?>
@@ -174,64 +155,92 @@ $activePage = 'anime';
   </div>
 </section>
 
-<?php if ($tmdbId > 0 && $tmdbType === 'tv' && !empty($seasons)): ?>
-<!-- Season selector + episode grid -->
+<?php if (!$isMovie): ?>
+<!-- Season selector + episode list -->
 <section class="season-section">
   <div class="season-header">
     <h3>Episodes</h3>
-    <select
-      id="season-select"
-      class="season-select"
-      data-show-id="<?= $malId ?>"
-      data-url-base="<?= e(BASE_URL . '/anime-detail.php?mal_id=' . $malId . '&season=') ?>"
-    >
-      <?php foreach ($seasons as $s): ?>
-        <option
-          value="<?= (int)$s['season_number'] ?>"
-          <?= (int)$s['season_number'] === $currentSeason ? 'selected' : '' ?>
-        >
-          Season <?= (int)$s['season_number'] ?>
-          <?php if (!empty($s['episode_count'])): ?>(<?= (int)$s['episode_count'] ?> eps)<?php endif; ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
+    <?php if (count($sequelChain) > 1): ?>
+      <select id="season-select" class="season-select">
+        <?php foreach ($sequelChain as $i => $s): ?>
+          <option
+            value="<?= e(BASE_URL . '/anime-detail.php?mal_id=' . (int)$s['mal_id']) ?>"
+            <?= $i === $currentChainIdx ? 'selected' : '' ?>
+          >
+            Season <?= $s['season_num'] ?>
+            <?php if ($s['episode_count'] > 0): ?>(<?= $s['episode_count'] ?> eps)<?php endif; ?>
+            &mdash; <?= e($s['title']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    <?php endif; ?>
   </div>
 
   <?php if (!empty($episodes)): ?>
     <div class="episode-grid">
       <?php foreach ($episodes as $ep): ?>
         <?php
-          $epNum      = (int)($ep['episode_number'] ?? 0);
-          $epTitle    = $ep['name'] ?? 'Episode ' . $epNum;
-          $epOverview = truncate($ep['overview'] ?? '', 180);
-          $epDate     = $ep['air_date'] ?? '';
-          $epStill    = stillUrl($ep['still_path'] ?? null);
-          $epWatch    = animeWatchUrl($malId, $epNum);
+          $epNum        = (int)($ep['mal_id'] ?? 0);
+          $epTitle      = $ep['title'] ?? ('Episode ' . $epNum);
+          $epDate       = substr($ep['aired'] ?? '', 0, 10); // "2011-10-02"
+          $epStill      = $thumbs[$epNum] ?? $poster;
+          $epWatch      = animeWatchUrl($malId, $epNum);
+          $isUpcoming   = $epDate !== '' && $epDate > $today;
+          $epDatePretty = $epDate ? date('M j, Y', strtotime($epDate)) : '';
         ?>
-        <div class="episode-card">
-          <a href="<?= e($epWatch) ?>">
-            <img class="episode-card__still" src="<?= e($epStill) ?>" alt="<?= e($epTitle) ?>" loading="lazy">
-          </a>
+        <div class="episode-card<?= $isUpcoming ? ' episode-card--upcoming' : '' ?>">
+          <!-- Jikan has no episode stills — use poster as placeholder -->
+          <?php if ($isUpcoming): ?>
+            <div class="episode-card__still-wrap">
+              <img class="episode-card__still" src="<?= e($epStill) ?>" alt="<?= e($epTitle) ?>" loading="lazy">
+              <div class="episode-card__lock">&#128274;</div>
+            </div>
+          <?php else: ?>
+            <a href="<?= e($epWatch) ?>">
+              <img class="episode-card__still" src="<?= e($epStill) ?>" alt="<?= e($epTitle) ?>" loading="lazy">
+            </a>
+          <?php endif; ?>
           <div class="episode-card__body">
             <p class="episode-card__num">Episode <?= $epNum ?></p>
             <h4 class="episode-card__title"><?= e($epTitle) ?></h4>
-            <?php if ($epDate): ?><p class="episode-card__date"><?= e($epDate) ?></p><?php endif; ?>
-            <?php if ($epOverview): ?><p class="episode-card__overview"><?= e($epOverview) ?></p><?php endif; ?>
-            <a class="episode-card__watch" href="<?= e($epWatch) ?>">&#9654; Watch</a>
+            <?php if ($isUpcoming && $epDatePretty): ?>
+              <p class="episode-card__upcoming-badge">&#9201; Releases <?= e($epDatePretty) ?></p>
+            <?php elseif ($epDatePretty): ?>
+              <p class="episode-card__date"><?= e($epDatePretty) ?></p>
+            <?php endif; ?>
+            <?php if (!$isUpcoming): ?>
+              <a class="episode-card__watch" href="<?= e($epWatch) ?>">&#9654; Watch</a>
+            <?php else: ?>
+              <span class="episode-card__watch episode-card__watch--soon">Not yet aired</span>
+            <?php endif; ?>
           </div>
         </div>
       <?php endforeach; ?>
     </div>
+  <?php elseif ($episodeCount === 0): ?>
+    <p style="color:var(--text-muted)">No episode data available yet.</p>
   <?php else: ?>
-    <p style="color:var(--text-muted)">No episodes found for this season.</p>
+    <!-- Episodes exist on MAL but Jikan episode list isn't available — show numbered links -->
+    <div class="episode-grid">
+      <?php for ($n = 1; $n <= min($episodeCount, 100); $n++): ?>
+        <div class="episode-card">
+          <a href="<?= e(animeWatchUrl($malId, $n)) ?>">
+            <img class="episode-card__still" src="<?= e($poster) ?>" alt="Episode <?= $n ?>" loading="lazy">
+          </a>
+          <div class="episode-card__body">
+            <p class="episode-card__num">Episode <?= $n ?></p>
+            <a class="episode-card__watch" href="<?= e(animeWatchUrl($malId, $n)) ?>">&#9654; Watch</a>
+          </div>
+        </div>
+      <?php endfor; ?>
+      <?php if ($episodeCount > 100): ?>
+        <p style="color:var(--text-muted);padding:1rem 0">
+          Showing first 100 of <?= $episodeCount ?> episodes.
+          <a href="<?= e(animeWatchUrl($malId, 1)) ?>" style="color:var(--red)">Start watching</a>
+        </p>
+      <?php endif; ?>
+    </div>
   <?php endif; ?>
-</section>
-<?php elseif ($tmdbId === 0): ?>
-<section style="padding:1.5rem 4%">
-  <p style="color:var(--text-muted);font-size:.9rem;">
-    &#9432; This title was not found in the streaming index. It may be too new, too obscure, or available under a different name.
-    You can try searching for it manually on <a href="<?= e(BASE_URL . '/search.php') ?>" style="color:var(--red)">the search page</a>.
-  </p>
 </section>
 <?php endif; ?>
 
@@ -239,13 +248,11 @@ $activePage = 'anime';
 
 <script>const BASE_URL = '<?= BASE_URL ?>';</script>
 <script>
-// Override season-select to use anime-detail URL instead of tv.php
 document.addEventListener('DOMContentLoaded', () => {
     const sel = document.getElementById('season-select');
     if (sel) {
         sel.addEventListener('change', () => {
-            const base = sel.dataset.urlBase;
-            if (base) window.location.href = base + encodeURIComponent(sel.value);
+            if (sel.value) window.location.href = sel.value;
         });
     }
 });

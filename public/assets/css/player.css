@@ -1,0 +1,685 @@
+/* ── Player page shell ───────────────────────────────────────────────────────── */
+html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
+
+.player-page { display: flex; flex-direction: column; height: 100vh; background: #000; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────────── */
+.player-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 1rem;
+  height: 48px;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.95);
+  z-index: 20;
+}
+
+.player-back {
+  font-size: 1.25rem;
+  color: #fff;
+  opacity: 0.7;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: opacity .15s;
+}
+.player-back:hover { opacity: 1; }
+
+.player-title {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Sub / Dub language toggle ───────────────────────────────────────────────── */
+.lang-toggle {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lang-btn {
+  background: #1a1a1a;
+  color: #888;
+  border: none;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  font-family: inherit;
+}
+.lang-btn + .lang-btn  { border-left: 1px solid #444; }
+.lang-btn:hover        { background: #2a2a2a; color: #ccc; }
+.lang-btn.active       { background: #E50914; color: #fff; }
+.lang-btn:disabled     { opacity: .35; cursor: default; }
+
+/* ── Episode nav (anime-watch only) ─────────────────────────────────────────── */
+.ep-nav { display: flex; gap: 4px; flex-shrink: 0; }
+
+.ep-nav a, .ep-nav span {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 3px;
+  text-decoration: none;
+  color: #888;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  transition: background .15s, color .15s;
+}
+.ep-nav a:hover { background: #2a2a2a; color: #ccc; }
+.ep-nav span    { opacity: .3; cursor: default; }
+
+/* ── Source buttons (watch.php only) ────────────────────────────────────────── */
+.source-btns { display: flex; gap: 3px; flex-shrink: 0; }
+
+.src-btn {
+  background: #1a1a1a;
+  color: #666;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.src-btn:hover    { background: #2a2a2a; color: #ccc; }
+.src-btn.active   { background: #E50914; border-color: #E50914; color: #fff; }
+.src-btn.checking { opacity: .35; cursor: default; }
+
+/* ── Status bar ──────────────────────────────────────────────────────────────── */
+.player-status {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #444;
+  padding: 3px 0;
+  flex-shrink: 0;
+  background: #000;
+  min-height: 18px;
+}
+
+/* ── Video / iframe area ─────────────────────────────────────────────────────── */
+.player-frame-wrap {
+  flex: 1;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  cursor: none;
+}
+.player-frame-wrap.controls-visible { cursor: default; }
+
+/* Native <video> element */
+#anime-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+/* Embedded <iframe> (watch.php) */
+.player-frame-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* ── Loading overlay ─────────────────────────────────────────────────────────── */
+.player-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #555;
+  font-size: 0.85rem;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+.player-loading.hidden { opacity: 0; }
+
+/* ── Loading / error overlay (anime-watch) ───────────────────────────────────── */
+.player-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.85);
+  color: #555;
+  font-size: 0.85rem;
+  z-index: 10;
+  transition: opacity .3s;
+  gap: 12px;
+}
+.player-overlay.hidden { opacity: 0; pointer-events: none; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #222;
+  border-top-color: #E50914;
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+  flex-shrink: 0;
+}
+
+.error-msg {
+  color: #c0392b;
+  text-align: center;
+  max-width: 420px;
+  line-height: 1.5;
+}
+.error-msg a { color: #E50914; }
+
+.not-configured {
+  color: #888;
+  text-align: center;
+  max-width: 480px;
+  line-height: 1.6;
+  font-size: 0.8rem;
+}
+.not-configured code {
+  background: #1a1a1a;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #ccc;
+}
+
+/* ── Custom video controls ───────────────────────────────────────────────────── */
+.custom-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
+  padding: 40px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity .25s ease;
+  pointer-events: none;
+  user-select: none;
+}
+.player-frame-wrap.controls-visible .custom-controls {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Center play/pause ripple */
+.center-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 64px;
+  height: 64px;
+  background: rgba(229,9,20,0.75);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 14;
+  pointer-events: none;
+  transition: transform .12s ease, opacity .25s ease;
+  opacity: 0;
+}
+.center-play.flash {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+.center-play svg { width: 28px; height: 28px; fill: #fff; }
+
+/* ── Progress bar ────────────────────────────────────────────────────────────── */
+.progress-row { display: flex; align-items: center; gap: 8px; }
+
+.progress-wrap {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: height .12s;
+}
+.progress-wrap:hover { height: 7px; }
+
+.progress-buf {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: rgba(255,255,255,0.25);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.progress-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: #E50914;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: width .1s linear;
+}
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 13px; height: 13px;
+  background: #E50914;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform .12s;
+}
+.progress-wrap:hover .progress-thumb { transform: translate(-50%, -50%) scale(1); }
+
+.time-display {
+  font-size: 0.72rem;
+  color: #ccc;
+  white-space: nowrap;
+  min-width: 88px;
+  text-align: right;
+}
+
+/* ── Control buttons row ─────────────────────────────────────────────────────── */
+.controls-row { display: flex; align-items: center; gap: 6px; }
+
+.ctrl-btn {
+  background: none;
+  border: none;
+  color: #ddd;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .15s, background .15s;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.ctrl-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.ctrl-btn svg   { width: 20px; height: 20px; fill: currentColor; display: block; }
+
+.ctrl-spacer { flex: 1; }
+
+/* ── Volume group ────────────────────────────────────────────────────────────── */
+.volume-group { display: flex; align-items: center; gap: 4px; }
+
+.volume-slider-wrap {
+  width: 0;
+  overflow: hidden;
+  transition: width .2s ease;
+}
+.volume-group:hover .volume-slider-wrap,
+.volume-group:focus-within .volume-slider-wrap { width: 72px; }
+
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px;
+  height: 4px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  accent-color: #E50914;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ── Subtitle dropdown ───────────────────────────────────────────────────────── */
+.sub-group { position: relative; }
+
+.sub-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  min-width: 150px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+  z-index: 20;
+}
+.sub-dropdown.open { display: flex; }
+
+.sub-dropdown button {
+  background: none;
+  border: none;
+  color: #aaa;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .1s, color .1s;
+}
+.sub-dropdown button:hover  { background: #2a2a2a; color: #fff; }
+.sub-dropdown button.active { color: #E50914; font-weight: 700; }
+
+/* ── Episode panel ───────────────────────────────────────────────────────────── */
+.ep-panel {
+  position: fixed;
+  top: 0;
+  right: -320px;
+  width: 300px;
+  max-width: 90vw;
+  height: 100vh;
+  background: #0d0d0d;
+  border-left: 1px solid #222;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.28s ease;
+  overflow: hidden;
+}
+.ep-panel.open { right: 0; }
+
+.ep-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #080808;
+  border-bottom: 1px solid #1e1e1e;
+  flex-shrink: 0;
+}
+
+.ep-panel__head-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ccc;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ep-panel__season-label {
+  font-size: 0.75rem;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.ep-panel__season-sel {
+  flex: 1;
+  min-width: 0;
+  background: #1a1a1a;
+  color: #ccc;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ep-panel__season-sel:focus { outline: 1px solid #555; }
+
+.ep-panel__close {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  font-family: inherit;
+  border-radius: 3px;
+}
+.ep-panel__close:hover { color: #ccc; background: #1a1a1a; }
+
+.ep-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a transparent;
+}
+.ep-panel__list::-webkit-scrollbar       { width: 4px; }
+.ep-panel__list::-webkit-scrollbar-track { background: transparent; }
+.ep-panel__list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+.ep-panel__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: #999;
+  border-bottom: 1px solid #141414;
+  transition: background 0.12s, color 0.12s;
+}
+.ep-panel__item:hover              { background: #1a1a1a; color: #fff; }
+.ep-panel__item--current           { background: #1c0f17; color: #fff; border-left: 3px solid #E50914; padding-left: 9px; }
+.ep-panel__item--upcoming          { opacity: 0.4; cursor: default; }
+
+.ep-panel__thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  height: 54px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+.ep-panel__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.ep-panel__thumb--blank { background: #1a1a1a; }
+
+.ep-panel__now,
+.ep-panel__soon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+.ep-panel__now { background: rgba(229,9,20,0.55); color: #fff; }
+.ep-panel__soon { background: rgba(0,0,0,0.5); color: #aaa; }
+
+.ep-panel__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ep-panel__num {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #555;
+  text-transform: uppercase;
+}
+.ep-panel__item--current .ep-panel__num { color: #E50914; }
+
+.ep-panel__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ep-panel__empty {
+  padding: 2rem 1rem;
+  color: #444;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* Episode panel toggle button (in topbar) */
+.ep-toggle-btn {
+  background: #1a1a1a;
+  color: #888;
+  border: 1px solid #333;
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ep-toggle-btn:hover  { background: #2a2a2a; color: #ccc; }
+.ep-toggle-btn.active { background: #E50914; border-color: #E50914; color: #fff; }
+
+/* Dim the player when the panel is open */
+.player-frame-wrap.panel-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 12;
+  pointer-events: none;
+}
+
+/* ── Mobile topbar (two-row layout) ─────────────────────────────────────────── */
+
+/* The break div is invisible on desktop */
+.player-topbar-break {
+  display: none;
+  flex: 0 0 100%;
+  height: 0;
+}
+
+@media (max-width: 640px) {
+  .player-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 48px;
+    padding: 6px 10px;
+    row-gap: 6px;
+  }
+
+  /* Show the break → title + back stay row 1, controls drop to row 2 */
+  .player-topbar-break {
+    display: block;
+  }
+
+  .player-back {
+    font-size: 1.1rem;
+    padding: 6px 6px 6px 0;
+  }
+
+  .player-title {
+    font-size: 0.76rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Row 2 controls */
+  .lang-toggle {
+    flex-shrink: 0;
+  }
+
+  .ep-nav {
+    margin-left: auto;
+  }
+
+  /* Episode nav: bigger touch targets */
+  .ep-nav a, .ep-nav span {
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Source buttons: wrap to their own scrollable row */
+  .source-btns {
+    order: 10;
+    flex: 0 0 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    gap: 4px;
+  }
+  .source-btns::-webkit-scrollbar { display: none; }
+
+  .src-btn {
+    padding: 5px 12px;
+    font-size: 0.72rem;
+    min-height: 32px;
+    white-space: nowrap;
+  }
+
+  /* On mobile, keep ep-nav right-aligned (same row as lang-toggle).
+     Episode toggle sits at the far right after ep-nav. */
+  .ep-nav {
+    margin-left: auto;
+  }
+
+  /* Bigger play/pause center icon on touch */
+  .center-play {
+    width: 80px;
+    height: 80px;
+  }
+
+  /* Taller progress bar for easier touch */
+  .progress-wrap { height: 6px; }
+  .progress-wrap:hover { height: 6px; }
+
+  /* Bigger control buttons */
+  .ctrl-btn {
+    padding: 8px;
+  }
+  .ctrl-btn svg { width: 22px; height: 22px; }
+
+  /* Episode panel: full-width on small screens */
+  .ep-panel {
+    width: 100vw;
+    max-width: 100vw;
+    right: -100vw;
+  }
+  .ep-panel.open { right: 0; }
+
+  .ep-toggle-btn {
+    padding: 5px 8px;
+    font-size: 0.68rem;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; border-top-color: #E50914; }
+  .player-back,
+  .lang-btn,
+  .src-btn,
+  .ctrl-btn,
+  .progress-wrap,
+  .progress-fill,
+  .progress-thumb,
+  .volume-slider-wrap,
+  .custom-controls { transition: none; }
+}

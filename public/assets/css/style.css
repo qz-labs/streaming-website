@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+
 /* ── Variables ───────────────────────────────────────────────────────────────── */
 :root {
   --bg:           #141414;
@@ -24,7 +26,7 @@ html { scroll-behavior: smooth; }
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
   min-height: 100vh;
@@ -36,6 +38,23 @@ img { display: block; max-width: 100%; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
 select { font-family: inherit; }
 ul { list-style: none; }
+
+/* ── Skip-to-content (accessibility) ────────────────────────────────────────── */
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  background: var(--red);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0 0 var(--radius) var(--radius);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: top 0.1s;
+}
+.skip-to-content:focus { top: 0; }
 
 /* ── Sticky Nav ──────────────────────────────────────────────────────────────── */
 .site-nav {
@@ -128,6 +147,7 @@ ul { list-style: none; }
   margin-top: calc(-1 * var(--nav-height));
   display: flex;
   align-items: center;
+  overflow: hidden;
 }
 
 /* Gradient overlays */
@@ -625,6 +645,46 @@ ul { list-style: none; }
 
 .episode-card__watch:hover { color: var(--red-hover); }
 
+/* Upcoming episode state */
+.episode-card--upcoming {
+  opacity: 0.7;
+}
+
+.episode-card__still-wrap {
+  position: relative;
+}
+
+.episode-card__lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: rgba(0,0,0,0.45);
+}
+
+.episode-card__upcoming-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+}
+
+.episode-card__watch--soon {
+  color: var(--text-dim);
+  cursor: default;
+  pointer-events: none;
+  font-style: italic;
+}
+
 /* ── Watch / Player ──────────────────────────────────────────────────────────── */
 .page-watch body {
   background: #000;
@@ -742,8 +802,7 @@ ul { list-style: none; }
 
 .search-grid .card {
   width: 100%;
-  height: 0;
-  padding-bottom: 150%; /* 2:3 ratio */
+  aspect-ratio: 2/3;
 }
 
 .empty-state {
@@ -798,6 +857,23 @@ ul { list-style: none; }
   margin-bottom: 1rem;
 }
 
+/* ── Genre section (anime page) ──────────────────────────────────────────────── */
+.genre-section {
+  padding: 1.25rem 4% 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.genre-section__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .detail-poster { display: block; width: 140px; }
@@ -816,9 +892,448 @@ ul { list-style: none; }
   .detail-poster { display: none; }
   .detail-content { gap: 1.5rem; padding: 2rem 4% 1.5rem; }
 
-  .episode-grid { grid-template-columns: 1fr; }
+  /* Episode grid: switch to compact horizontal-card list */
+  .episode-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .episode-card {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  /* Still image thumbnail on the left */
+  .episode-card > a,
+  .episode-card__still-wrap {
+    flex-shrink: 0;
+    width: 140px;
+    min-width: 140px;
+  }
+
+  .episode-card__still {
+    width: 140px;
+    height: 85px;
+    aspect-ratio: unset;
+    object-fit: cover;
+  }
+
+  .episode-card__body {
+    flex: 1;
+    min-width: 0;
+    padding: 0.55rem 0.65rem;
+  }
+
+  /* Hide long overview on mobile */
+  .episode-card__overview { display: none; }
+
+  /* Season header stacks on mobile */
+  .season-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .season-select { width: 100%; }
+
+  /* Detail buttons stack */
+  .detail-buttons {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .detail-buttons .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @media (min-width: 901px) {
   .detail-poster { display: block; }
+}
+
+/* ── Hamburger (mobile) ──────────────────────────────────────────────────────── */
+.nav__hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  padding: 4px;
+  margin-left: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nav__hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.nav__hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav__hamburger.open span:nth-child(2) { opacity: 0; }
+.nav__hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.nav__drawer {
+  position: fixed;
+  top: var(--nav-height);
+  left: 0;
+  right: 0;
+  background: rgba(10,10,10,0.98);
+  padding: 0.5rem 4% 1.5rem;
+  z-index: 199;
+  transform: translateY(-110%);
+  transition: transform 0.3s ease;
+  border-bottom: 1px solid #222;
+  backdrop-filter: blur(10px);
+}
+
+.nav__drawer.open { transform: translateY(0); }
+
+.nav__drawer ul { display: flex; flex-direction: column; }
+
+.nav__drawer ul li a {
+  display: block;
+  padding: 0.85rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid #1c1c1c;
+  transition: color var(--transition);
+}
+
+.nav__drawer ul li a:hover,
+.nav__drawer ul li a.active { color: var(--text); }
+
+@media (max-width: 768px) {
+  .nav__hamburger { display: flex; }
+  .nav__search { margin-left: auto; }
+}
+
+/* ── Card play button ────────────────────────────────────────────────────────── */
+.card__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.75);
+  width: 46px;
+  height: 46px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  color: #000;
+  font-size: 1rem;
+  padding-left: 3px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.card:hover .card__play {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ── Skeleton shimmer ────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.card--skeleton {
+  background: linear-gradient(90deg, #1a1a1a 25%, #262626 50%, #1a1a1a 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.5s infinite linear;
+  pointer-events: none;
+}
+
+.card--skeleton img,
+.card--skeleton .card__overlay,
+.card--skeleton .card__play { display: none; }
+
+/* ── Hero carousel ───────────────────────────────────────────────────────────── */
+.hero { position: relative; }
+
+.hero__slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center top;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  z-index: 0;
+}
+
+.hero__slide.active { opacity: 1; }
+
+.hero__content { z-index: 2; }
+
+.hero::before,
+.hero::after { z-index: 1; }
+
+.hero__dots {
+  position: absolute;
+  bottom: 3rem;
+  left: 4%;
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+.hero__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--transition), transform var(--transition), width var(--transition);
+}
+
+.hero__dot.active {
+  background: var(--text);
+  width: 22px;
+  border-radius: 4px;
+}
+
+/* ── Anime hero – portrait image shown clearly (like movie/TV backdrop) ─────── */
+.hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.hero__bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+/* ── Genre filter pills ──────────────────────────────────────────────────────── */
+.genre-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 0.25rem;
+}
+
+/* On small screens go back to horizontal scroll */
+@media (max-width: 640px) {
+  .genre-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .genre-filters::-webkit-scrollbar { display: none; }
+}
+
+.genre-pill {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.07);
+  color: var(--text-muted);
+  border: 1px solid rgba(255,255,255,0.11);
+  border-radius: 20px;
+  padding: 5px 15px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.genre-pill:hover {
+  background: rgba(255,255,255,0.13);
+  color: var(--text);
+}
+
+.genre-pill.active {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+
+/* ── Rating badge (improved) ─────────────────────────────────────────────────── */
+.card__rating {
+  background: rgba(0,0,0,0.72);
+  border: 1px solid rgba(255,215,0,0.25);
+  color: #ffd700;
+  font-size: 0.68rem;
+}
+
+/* ── Page entry fade ─────────────────────────────────────────────────────────── */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.rows-container,
+.search-page,
+.season-section,
+.cast-section {
+  animation: pageIn 0.45s ease both;
+}
+
+.detail-content {
+  animation: pageIn 0.4s ease both;
+}
+
+/* ── Back to top ─────────────────────────────────────────────────────────────── */
+.back-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 42px;
+  height: 42px;
+  background: var(--red);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 150;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease, background var(--transition);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  font-family: inherit;
+}
+
+.back-to-top.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.back-to-top:hover { background: var(--red-hover); }
+
+/* ── Search tabs ─────────────────────────────────────────────────────────────── */
+.search-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.search-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color var(--transition), border-color var(--transition);
+  font-family: inherit;
+}
+
+.search-tab:hover { color: var(--text); }
+
+.search-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--red);
+}
+
+.search-tab .tab-count {
+  display: inline-block;
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  margin-left: 5px;
+  font-weight: 700;
+}
+
+.search-section { display: block; }
+.search-section.hidden { display: none; }
+
+.search-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+
+/* ── Footer expanded ─────────────────────────────────────────────────────────── */
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.footer-col h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+
+.footer-col ul { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.footer-col ul li a {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  transition: color var(--transition);
+  text-decoration: none;
+}
+
+.footer-col ul li a:hover { color: var(--text-muted); }
+
+.footer-bottom {
+  border-top: 1px solid #1e1e1e;
+  padding-top: 1rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer-bottom p { font-size: 0.78rem; color: var(--text-dim); }
+
+.footer-bottom a {
+  color: var(--text-dim);
+  text-decoration: underline;
+}
+
+.footer-bottom a:hover { color: var(--text-muted); }
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .hero__slide { transition: none; }
+  .card        { transition: none; }
+  .back-to-top { transition: none; }
 }

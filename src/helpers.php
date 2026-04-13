@@ -58,15 +58,29 @@ function tvWatchUrl(int $id, int $season, int $episode): string
 }
 
 /**
+ * Return true only when $domain is in the configured VIDSRC_DOMAINS list.
+ * Prevents arbitrary domain injection into embed URLs.
+ */
+function isAllowedVidsrcDomain(string $domain): bool
+{
+    return in_array($domain, VIDSRC_DOMAINS, true);
+}
+
+/**
  * vidsrc embed URL for a movie.
  * Appends ds_lang when provided (ISO 639-1, e.g. "en", "ja").
  */
 function vidsrcMovieEmbed(int $id, string $domain = '', string $dsLang = ''): string
 {
-    $base = $domain ? 'https://' . $domain . '/embed' : VIDSRC_BASE;
-    $url  = $base . '/movie/' . $id;
-    if ($dsLang !== '') $url .= '?ds_lang=' . urlencode($dsLang);
-    return $url;
+    if ($domain !== '' && !isAllowedVidsrcDomain($domain)) {
+        $domain = '';  // Fall back to default rather than injecting arbitrary domain
+    }
+    $base   = $domain ? 'https://' . $domain . '/embed' : VIDSRC_BASE;
+    $url    = $base . '/movie/' . $id;
+    $params = [];
+    if ($dsLang !== '') $params[] = 'ds_lang=' . urlencode($dsLang);
+    $params[] = 'autoplay=1';
+    return $url . '?' . implode('&', $params);
 }
 
 /**
@@ -75,10 +89,15 @@ function vidsrcMovieEmbed(int $id, string $domain = '', string $dsLang = ''): st
  */
 function vidsrcTvEmbed(int $id, int $season, int $episode, string $domain = '', string $dsLang = ''): string
 {
-    $base = $domain ? 'https://' . $domain . '/embed' : VIDSRC_BASE;
-    $url  = $base . '/tv/' . $id . '/' . $season . '-' . $episode;
-    if ($dsLang !== '') $url .= '?ds_lang=' . urlencode($dsLang);
-    return $url;
+    if ($domain !== '' && !isAllowedVidsrcDomain($domain)) {
+        $domain = '';  // Fall back to default rather than injecting arbitrary domain
+    }
+    $base   = $domain ? 'https://' . $domain . '/embed' : VIDSRC_BASE;
+    $url    = $base . '/tv/' . $id . '/' . $season . '-' . $episode;
+    $params = [];
+    if ($dsLang !== '') $params[] = 'ds_lang=' . urlencode($dsLang);
+    $params[] = 'autoplay=1';
+    return $url . '?' . implode('&', $params);
 }
 
 /**
@@ -92,9 +111,9 @@ function extraProviderUrl(array $provider, string $type, int $id, int $season = 
 {
     $base = 'https://' . $provider['host'] . $provider['prefix'] . '/embed';
     if ($type === 'movie') {
-        return $base . '/movie/' . $id;
+        return $base . '/movie/' . $id . '?autoplay=1';
     }
-    return $base . '/tv/' . $id . '/' . $season . '/' . $episode;
+    return $base . '/tv/' . $id . '/' . $season . '/' . $episode . '?autoplay=1';
 }
 
 /**
@@ -197,9 +216,9 @@ function animeDetailUrl(int $malId): string
 /**
  * URL to the anime HLS watch page (Consumet-powered).
  */
-function animeWatchUrl(int $malId, int $episode = 1): string
+function animeWatchUrl(int $malId, int $episode = 1, int $season = 1): string
 {
-    return BASE_URL . '/anime-watch.php?mal_id=' . $malId . '&episode=' . $episode;
+    return BASE_URL . '/anime-watch.php?mal_id=' . $malId . '&episode=' . $episode . '&season=' . $season;
 }
 
 /**
@@ -253,11 +272,13 @@ function renderAnimeRow(string $title, array $items): void
         $rating = isset($item['score']) && $item['score'] > 0 ? ratingBadge((float)$item['score']) : '';
         $poster = jikanImg($item['images'] ?? []);
         $badge  = animeTypeBadge($item['type'] ?? '');
-        $link   = animeDetailUrl($malId);
-        echo '<a class="card" href="' . e($link) . '" title="' . e($name) . '">';
-        echo '<img src="' . e($poster) . '" alt="' . e($name) . '" loading="lazy">';
+        $link      = animeDetailUrl($malId);
+        $genreIds  = implode(',', array_column($item['genres'] ?? [], 'mal_id'));
+        echo '<a class="card" href="' . e($link) . '" title="' . e($name) . '" data-genre-ids="' . e($genreIds) . '">';
+        echo '<img src="' . e($poster) . '" alt="' . e($name) . '" loading="lazy" referrerpolicy="no-referrer">';
+        echo '<div class="card__play">&#9654;</div>';
         echo '<div class="card__overlay">';
-        if ($rating) echo '<span class="card__rating">' . e($rating) . '</span>';
+        if ($rating) echo '<span class="card__rating">&#9733; ' . e($rating) . '</span>';
         if ($badge)  echo '<span class="card__type-badge">' . e($badge) . '</span>';
         echo '<p class="card__title">' . e($name) . '</p>';
         if ($year)   echo '<p class="card__year">' . e($year) . '</p>';
@@ -285,17 +306,15 @@ function renderRow(string $title, array $items, string $type): void
         $year  = e(yearFromDate($item['release_date'] ?? $item['first_air_date'] ?? null));
         $rating = isset($item['vote_average']) ? ratingBadge((float)$item['vote_average']) : '';
         $poster = imgUrl($item['poster_path'] ?? null);
-        $link   = $detailBase . $id;
-        echo '<a class="card" href="' . e($link) . '" title="' . $name . '">';
-        echo '<img src="' . e($poster) . '" alt="' . $name . '" loading="lazy">';
+        $link     = $detailBase . $id;
+        $genreIds = implode(',', $item['genre_ids'] ?? []);
+        echo '<a class="card" href="' . e($link) . '" title="' . $name . '" data-genre-ids="' . $genreIds . '">';
+        echo '<img src="' . e($poster) . '" alt="' . $name . '" loading="lazy" referrerpolicy="no-referrer">';
+        echo '<div class="card__play">&#9654;</div>';
         echo '<div class="card__overlay">';
-        if ($rating) {
-            echo '<span class="card__rating">' . e($rating) . '</span>';
-        }
+        if ($rating) echo '<span class="card__rating">&#9733; ' . e($rating) . '</span>';
         echo '<p class="card__title">' . $name . '</p>';
-        if ($year) {
-            echo '<p class="card__year">' . $year . '</p>';
-        }
+        if ($year) echo '<p class="card__year">' . $year . '</p>';
         echo '</div>';
         echo '</a>';
     }

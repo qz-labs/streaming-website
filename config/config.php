@@ -68,8 +68,32 @@ define('VIDSRC_EXTRA_PROVIDERS', [
 define('VIDSRC_BASE', 'https://' . VIDSRC_DOMAINS[0] . '/embed');
 
 // ── Site ──────────────────────────────────────────────────────────────────────
-define('SITE_NAME',         env('SITE_NAME', 'StreamFlix'));
-define('BASE_URL',          env('BASE_URL', '/StreamingWebsite/public'));  // no trailing slash
+define('SITE_NAME', env('SITE_NAME', 'StreamFlix'));
+
+// BASE_URL: prefer explicit .env value; otherwise auto-detect from the request.
+// Auto-detection: scheme + host + the path segment up to /public (handles any subfolder).
+(function () {
+    $fromEnv = env('BASE_URL', '');
+    if ($fromEnv !== '') {
+        define('BASE_URL', rtrim($fromEnv, '/'));
+        return;
+    }
+    // Detect scheme
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    // Walk up SCRIPT_NAME to find the /public segment
+    $script = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
+    // Strip everything after /public (inclusive of the file name)
+    $base   = preg_replace('#/public/.*$#', '/public', $script) ?: '/public';
+    define('BASE_URL', $scheme . '://' . $host . $base);
+})();
+
+// ── Startup config validation ─────────────────────────────────────────────────
+// Fail fast with a clear message rather than silent downstream errors.
+if (env('TMDB_KEY', '') === '' && php_sapi_name() !== 'cli') {
+    http_response_code(500);
+    exit('Configuration error: TMDB_KEY is not set. Add it to your .env file.');
+}
 
 // ── HiAnime API + m3u8 proxy (optional) ──────────────────────────────────────
 define('CONSUMET_URL',      rtrim(env('CONSUMET_URL',    ''), '/'));  // empty = disabled
