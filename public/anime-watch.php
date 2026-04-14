@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../src/Auth.php';
+requireLogin();
 require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/JikanApi.php';
 
@@ -147,6 +149,15 @@ $today         = date('Y-m-d');
     <div class="center-play" id="center-play">
       <svg id="center-play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
     </div>
+
+    <!-- iOS unmute prompt — shown when iOS blocks programmatic unmute -->
+    <div class="unmute-prompt" id="unmute-prompt" style="display:none">
+      <button class="unmute-btn" id="unmute-btn">&#128266; Tap to unmute</button>
+    </div>
+
+    <!-- Double-tap seek indicators -->
+    <div class="seek-indicator seek-indicator--left"  id="seek-left"  aria-hidden="true">&#9664;&#9664; 10s</div>
+    <div class="seek-indicator seek-indicator--right" id="seek-right" aria-hidden="true">10s &#9654;&#9654;</div>
 
     <!-- Custom controls -->
     <div class="custom-controls" id="custom-controls">
@@ -301,6 +312,17 @@ $today         = date('Y-m-d');
   const centerIcon   = document.getElementById('center-play-icon');
   const btnSubs      = document.getElementById('btn-subs');
   const subDropdown  = document.getElementById('sub-dropdown');
+  const unmutePrompt = document.getElementById('unmute-prompt');
+  const unmuteBtn    = document.getElementById('unmute-btn');
+
+  // ── iOS unmute: attach once at module scope so it works across stream reloads
+  if (unmuteBtn) {
+    unmuteBtn.addEventListener('click', () => {
+      video.muted = false; // direct user gesture — iOS will honour this
+      updateVolIcon();
+      if (unmutePrompt) unmutePrompt.style.display = 'none';
+    });
+  }
 
   let hls         = null;
   let currentMode = 'sub';
@@ -313,11 +335,19 @@ $today         = date('Y-m-d');
   // ── Mobile: overlay UI + auto-fullscreen ──────────────────────────────────
   const isMobile  = window.matchMedia('(max-width: 640px)').matches;
   const playerPage = document.querySelector('.player-page');
+  // iOS Safari does not support document.fullscreenEnabled / requestFullscreen;
+  // it only exposes video.webkitEnterFullscreen on <video> elements.
+  const isIOS = !document.fullscreenEnabled &&
+                typeof video.webkitEnterFullscreen === 'function';
   let fsTriggered = false;
 
   function enterFullscreen() {
     if (fsTriggered) return;
     fsTriggered = true;
+    if (isIOS) {
+      if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+      return;
+    }
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (req) req.call(el).catch(() => {});
@@ -335,9 +365,51 @@ $today         = date('Y-m-d');
       }, 3000);
     }
   }
+  // ── Double-tap to seek ────────────────────────────────────────────────────
+  const seekLeftEl  = document.getElementById('seek-left');
+  const seekRightEl = document.getElementById('seek-right');
+  let lastTapTime   = 0;
+
+  function flashSeekIndicator(el) {
+    if (!el) return;
+    el.classList.remove('flash');
+    void el.offsetWidth; // force reflow so re-triggering restarts the transition
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 600);
+  }
+
   wrap.addEventListener('mousemove',  showControls);
   wrap.addEventListener('touchstart', (e) => {
-    if (!e.target.closest('button, a, select, input')) enterFullscreen();
+    const now    = Date.now();
+    const target = e.target;
+
+    // Don't intercept taps on controls, dropdowns, or links
+    if (target.closest('button, a, select, input, .sub-dropdown')) {
+      showControls();
+      return;
+    }
+
+    const dt   = now - lastTapTime;
+    lastTapTime = now;
+
+    if (dt < 300 && dt > 0) {
+      // Double-tap detected — seek instead of toggling controls
+      const rect = wrap.getBoundingClientRect();
+      const tapX = e.touches[0].clientX - rect.left;
+      if (tapX < rect.width / 2) {
+        video.currentTime = Math.max(0, video.currentTime - 10);
+        flashSeekIndicator(seekLeftEl);
+      } else {
+        video.currentTime += 10;
+        flashSeekIndicator(seekRightEl);
+      }
+      lastTapTime = 0; // reset so a third tap doesn't double-seek
+      showControls();  // keep controls visible after seeking
+      return;
+    }
+
+    // Single tap: enter fullscreen on first touch, then show controls
+    enterFullscreen();
     showControls();
   }, { passive: true });
   wrap.addEventListener('mouseleave', () => {
@@ -443,11 +515,21 @@ $today         = date('Y-m-d');
   const FS_EXIT  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
 
   function updateFsIcon() {
-    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                    (isIOS && video.webkitDisplayingFullscreen));
     fsIcon.innerHTML = '<path d="' + (inFs ? FS_EXIT : FS_ENTER) + '"/>';
   }
 
   function toggleFullscreen() {
+    if (isIOS) {
+      // iOS Safari: use the video element's own fullscreen API
+      if (video.webkitDisplayingFullscreen) {
+        video.webkitExitFullscreen();
+      } else {
+        video.webkitEnterFullscreen();
+      }
+      return;
+    }
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
       // On mobile fullscreen the whole page so our overlay UI is included;
       // on desktop fullscreen just the frame-wrap for a cleaner cinema view.
@@ -470,7 +552,8 @@ $today         = date('Y-m-d');
   function updateAllFsIcons() {
     updateFsIcon();
     if (topbarFsBtn) {
-      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                      (isIOS && video.webkitDisplayingFullscreen));
       topbarFsBtn.innerHTML = inFs ? '&#x2715;' : '&#x26F6;';
       topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
     }
@@ -478,6 +561,9 @@ $today         = date('Y-m-d');
 
   document.addEventListener('fullscreenchange',       updateAllFsIcons);
   document.addEventListener('webkitfullscreenchange', updateAllFsIcons);
+  // iOS fires these on the video element instead of the document
+  video.addEventListener('webkitbeginfullscreen', updateAllFsIcons);
+  video.addEventListener('webkitendfullscreen',   updateAllFsIcons);
 
   let availableSubtitles = [];
   let cachedSubtitles    = []; // subtitles from the sub stream, reused for dub
@@ -580,12 +666,18 @@ $today         = date('Y-m-d');
 
     function onReady() {
       hideOverlay();
+      if (unmutePrompt) unmutePrompt.style.display = 'none';
       if (seekTo > 0) video.currentTime = seekTo;
       // Start muted so browsers allow autoplay, then restore sound immediately
       video.muted = true;
       video.play().then(() => {
         video.muted = false;
         updateVolIcon();
+        // On iOS, video.muted = false inside .then() is blocked (not a user gesture).
+        // After a short settle, check if the browser kept it muted and show a prompt.
+        setTimeout(() => {
+          if (video.muted && unmutePrompt) unmutePrompt.style.display = 'block';
+        }, 200);
       }).catch(() => {
         // Muted autoplay also failed — show play button, user will click
         video.muted = false;
@@ -623,6 +715,7 @@ $today         = date('Y-m-d');
   }
 
   async function fetchAndLoad(category, seekTo = 0) {
+    if (unmutePrompt) unmutePrompt.style.display = 'none';
     setActiveMode(category);
     savePref(category);
     showOverlay('Resolving ' + category.toUpperCase() + ' stream\u2026');

@@ -137,6 +137,19 @@ ul { list-style: none; }
 .nav__search-input::placeholder { color: var(--text-dim); }
 .nav__search-input:focus { outline: 1px solid var(--text-muted); }
 
+.nav__logout {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #444;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.nav__logout:hover { color: var(--text); border-color: #888; }
+
 /* ── Hero Banner ─────────────────────────────────────────────────────────────── */
 .hero {
   position: relative;

@@ -15,6 +15,13 @@
  * GET ?url={encoded_vtt_url}
  */
 declare(strict_types=1);
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../src/Auth.php';
+authStart();
+if (!isLoggedIn()) {
+    http_response_code(401);
+    exit('Unauthorized');
+}
 
 // ── Domain whitelist ──────────────────────────────────────────────────────────
 // Only URLs whose host matches one of these suffixes (or exact values) are proxied.

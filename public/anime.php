@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../src/Auth.php';
+requireLogin();
 require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/JikanApi.php';
 

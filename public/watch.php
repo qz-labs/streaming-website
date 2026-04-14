@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../src/Auth.php';
+requireLogin();
 require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/TmdbApi.php';
 
@@ -357,6 +359,10 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   // ── Mobile: overlay UI + auto-fullscreen ─────────────────────────────────
   const isMobile = window.matchMedia('(max-width: 640px)').matches;
   const playerPage = document.querySelector('.player-page');
+  // iOS Safari does not support document.requestFullscreen; detect it via a
+  // temporary video element (no actual video element exists on this page).
+  const isIOS = !document.fullscreenEnabled &&
+                typeof document.createElement('video').webkitEnterFullscreen === 'function';
 
   if (isMobile && playerPage) {
     let uiTimer = null;
@@ -371,6 +377,16 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     function enterFullscreen() {
       if (fsTriggered) return;
       fsTriggered = true;
+      if (isIOS) {
+        // iOS Safari: try to fullscreen the iframe element itself.
+        // Cross-origin iframes may silently refuse; the provider's own
+        // fullscreen button inside the iframe remains the fallback.
+        const iframeEl = document.getElementById('player-iframe');
+        if (iframeEl && iframeEl.webkitRequestFullscreen) {
+          iframeEl.webkitRequestFullscreen();
+        }
+        return;
+      }
       const el = document.documentElement;
       const req = el.requestFullscreen || el.webkitRequestFullscreen;
       if (req) req.call(el).catch(() => {});
@@ -397,6 +413,14 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   const playerFrameWrap = document.querySelector('.player-frame-wrap');
   if (topbarFsBtn && playerFrameWrap) {
     topbarFsBtn.addEventListener('click', () => {
+      if (isIOS) {
+        // iOS Safari: try iframe.webkitRequestFullscreen; no-op if blocked
+        const iframeEl = document.getElementById('player-iframe');
+        if (iframeEl && iframeEl.webkitRequestFullscreen) {
+          iframeEl.webkitRequestFullscreen();
+        }
+        return;
+      }
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
         const el = isMobile ? document.documentElement : playerFrameWrap;
         (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});

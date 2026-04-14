@@ -1,5 +1,13 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../src/Auth.php';
+authStart();
+if (!isLoggedIn()) {
+    header('Content-Type: application/json');
+    http_response_code(401);
+    exit(json_encode(['error' => 'Unauthorized']));
+}
 
 /**
  * stream.php — JSON endpoint for anime HLS stream resolution.
@@ -19,7 +27,6 @@ declare(strict_types=1);
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
-require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../src/JikanApi.php';
 require_once __DIR__ . '/../src/ConsumetApi.php';
 
