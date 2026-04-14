@@ -99,6 +99,11 @@ if (env('TMDB_KEY', '') === '' && php_sapi_name() !== 'cli') {
 define('CONSUMET_URL',      rtrim(env('CONSUMET_URL',    ''), '/'));  // empty = disabled
 define('M3U8_PROXY_URL',    rtrim(env('M3U8_PROXY_URL', ''), '/'));  // empty = no proxy
 
+// ── cURL SSL ─────────────────────────────────────────────────────────────────
+// Path to CA bundle for SSL verification. On XAMPP/Windows this must be set
+// explicitly; on Linux/production the system bundle is used automatically.
+define('CURL_CA_BUNDLE',    env('CURL_CA_BUNDLE', ''));
+
 // ── File cache ────────────────────────────────────────────────────────────────
 define('CACHE_DIR',         __DIR__ . '/../cache');
 define('CACHE_TTL',         (int) env('CACHE_TTL', '3600'));   // seconds (1 hour)

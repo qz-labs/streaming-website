@@ -21,38 +21,39 @@ class JikanApi
             $url .= '?' . http_build_query($params);
         }
 
-        // XAMPP Windows SSL fix (same as TmdbApi)
-        $caBundle  = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
-        $verifySsl = file_exists($caBundle);
+        // On XAMPP/Windows, point cURL at the bundled CA cert (set CURL_CA_BUNDLE in .env).
+        $caBundle = CURL_CA_BUNDLE;
+        $verifySsl = $caBundle !== '' && file_exists($caBundle);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_TIMEOUT => 10,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTPHEADER     => ['Accept: application/json', 'User-Agent: StreamFlix/1.0'],
+            CURLOPT_HTTPHEADER => ['Accept: application/json', 'User-Agent: ' . SITE_NAME . '/1.0'],
             CURLOPT_SSL_VERIFYPEER => $verifySsl,
             CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
-            CURLOPT_CAINFO         => $verifySsl ? $caBundle : null,
-            CURLOPT_HEADER         => true,
+            CURLOPT_CAINFO => $verifySsl ? $caBundle : null,
+            CURLOPT_HEADER => true,
         ]);
-        $raw   = curl_exec($ch);
+        $raw = curl_exec($ch);
         $errno = curl_errno($ch);
-        $info  = curl_getinfo($ch);
+        $info = curl_getinfo($ch);
         // curl_close() is deprecated since PHP 8.5
         unset($ch);
 
-        if ($errno || !$raw) return [];
+        if ($errno || !$raw)
+            return [];
 
         $headerSize = $info['header_size'];
-        $body       = substr($raw, $headerSize);
-        $httpCode   = $info['http_code'];
+        $body = substr($raw, $headerSize);
+        $httpCode = $info['http_code'];
 
         // Jikan rate-limit (429 or 503) — retry up to 3 times with backoff
         if (in_array($httpCode, [429, 503], true) && $attempt <= 3) {
             $headerSection = substr($raw, 0, $headerSize);
             if (preg_match('/Retry-After:\s*(\d+)/i', $headerSection, $m)) {
-                $wait = max(1, (int)$m[1]);
+                $wait = max(1, (int) $m[1]);
             } else {
                 $wait = $attempt * 2; // 2s, 4s, 6s
             }
@@ -60,7 +61,8 @@ class JikanApi
             return $this->fetch($endpoint, $params, $attempt + 1);
         }
 
-        if ($httpCode < 200 || $httpCode >= 300) return [];
+        if ($httpCode < 200 || $httpCode >= 300)
+            return [];
 
         return json_decode($body, true) ?? [];
     }
@@ -71,7 +73,8 @@ class JikanApi
 
         if (file_exists($file) && (time() - filemtime($file)) < CACHE_TTL) {
             $cached = json_decode(file_get_contents($file), true);
-            if (is_array($cached)) return $cached;
+            if (is_array($cached))
+                return $cached;
         }
 
         $data = $this->fetch($endpoint, $params);
@@ -106,10 +109,10 @@ class JikanApi
     public function topAnime(string $type = 'tv', string $filter = 'bypopularity', int $page = 1): array
     {
         return $this->results('/top/anime', [
-            'type'   => $type,
+            'type' => $type,
             'filter' => $filter,
-            'page'   => $page,
-            'limit'  => 25,
+            'page' => $page,
+            'limit' => 25,
         ]);
     }
 
@@ -120,7 +123,8 @@ class JikanApi
     public function searchAnime(string $query, string $type = ''): array
     {
         $params = ['q' => $query, 'limit' => 20, 'sfw' => 'false'];
-        if ($type !== '') $params['type'] = $type;
+        if ($type !== '')
+            $params['type'] = $type;
         return $this->results('/anime', $params);
     }
 
@@ -149,46 +153,50 @@ class JikanApi
 
         if (file_exists($cacheFile) && time() - filemtime($cacheFile) < CACHE_TTL) {
             $cached = json_decode(file_get_contents($cacheFile), true);
-            if (is_array($cached)) return $cached;
+            if (is_array($cached))
+                return $cached;
         }
 
         $query = 'query($id:Int){Media(idMal:$id,type:ANIME){streamingEpisodes{title thumbnail}}}';
         $payload = json_encode(['query' => $query, 'variables' => ['id' => $malId]]);
 
-        $caBundle  = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
-        $verifySsl = file_exists($caBundle);
+        $caBundle = CURL_CA_BUNDLE;
+        $verifySsl = $caBundle !== '' && file_exists($caBundle);
 
         $ch = curl_init('https://graphql.anilist.co');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 10,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
             CURLOPT_SSL_VERIFYPEER => $verifySsl,
             CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
-            CURLOPT_CAINFO         => $verifySsl ? $caBundle : null,
+            CURLOPT_CAINFO => $verifySsl ? $caBundle : null,
         ]);
 
-        $body  = curl_exec($ch);
+        $body = curl_exec($ch);
         $errno = curl_errno($ch);
         unset($ch);
 
-        if ($errno || !$body) return [];
+        if ($errno || !$body)
+            return [];
 
         $data = json_decode($body, true);
         $streamingEps = $data['data']['Media']['streamingEpisodes'] ?? [];
-        if (empty($streamingEps)) return [];
+        if (empty($streamingEps))
+            return [];
 
         // Build map: episode_number => thumbnail_url
         // AniList titles are like "Episode 1 - Title" or "Episode 1"
         $map = [];
         foreach ($streamingEps as $ep) {
             $thumb = $ep['thumbnail'] ?? '';
-            $title = $ep['title']     ?? '';
-            if (!$thumb) continue;
+            $title = $ep['title'] ?? '';
+            if (!$thumb)
+                continue;
             if (preg_match('/^Episode\s+(\d+)/i', $title, $m)) {
-                $map[(int)$m[1]] = $thumb;
+                $map[(int) $m[1]] = $thumb;
             }
         }
 
@@ -206,9 +214,9 @@ class JikanApi
     {
         $data = $this->cachedFetch('/anime/' . $malId . '/episodes', ['page' => $page]);
         return [
-            'episodes'     => $data['data']       ?? [],
-            'has_next'     => $data['pagination']['has_next_page'] ?? false,
-            'last_page'    => $data['pagination']['last_visible_page'] ?? 1,
+            'episodes' => $data['data'] ?? [],
+            'has_next' => $data['pagination']['has_next_page'] ?? false,
+            'last_page' => $data['pagination']['last_visible_page'] ?? 1,
         ];
     }
 
@@ -218,12 +226,12 @@ class JikanApi
      */
     public function allAnimeEpisodes(int $malId): array
     {
-        $all  = [];
+        $all = [];
         $page = 1;
         do {
-            $result   = $this->animeEpisodes($malId, $page);
-            $all      = array_merge($all, $result['episodes']);
-            $hasNext  = $result['has_next'];
+            $result = $this->animeEpisodes($malId, $page);
+            $all = array_merge($all, $result['episodes']);
+            $hasNext = $result['has_next'];
             $page++;
         } while ($hasNext && $page <= 20); // safety cap at 2000 episodes
         return $all;
@@ -259,15 +267,17 @@ class JikanApi
 
     private function findChainRoot(int $malId, array $visited): int
     {
-        if (in_array($malId, $visited, true)) return $malId; // cycle guard
+        if (in_array($malId, $visited, true))
+            return $malId; // cycle guard
         $visited[] = $malId;
 
         $relations = $this->animeRelations($malId);
         foreach ($relations as $rel) {
-            if (strtolower($rel['relation'] ?? '') !== 'prequel') continue;
+            if (strtolower($rel['relation'] ?? '') !== 'prequel')
+                continue;
             foreach ($rel['entry'] as $entry) {
                 if ($entry['type'] === 'anime') {
-                    return $this->findChainRoot((int)$entry['mal_id'], $visited);
+                    return $this->findChainRoot((int) $entry['mal_id'], $visited);
                 }
             }
         }
@@ -276,29 +286,34 @@ class JikanApi
 
     private function walkSequels(int $malId, array $visited, int $seasonNum): array
     {
-        if (in_array($malId, $visited, true)) return []; // cycle guard
+        if (in_array($malId, $visited, true))
+            return []; // cycle guard
         $visited[] = $malId;
 
         $details = $this->animeDetails($malId);
-        $chain   = [[
-            'mal_id'        => $malId,
-            'title'         => $details['title_english'] ?: ($details['title'] ?? 'Season ' . $seasonNum),
-            'episode_count' => (int)($details['episodes'] ?? 0),
-            'season_num'    => $seasonNum,
-        ]];
+        $chain = [
+            [
+                'mal_id' => $malId,
+                'title' => $details['title_english'] ?: ($details['title'] ?? 'Season ' . $seasonNum),
+                'episode_count' => (int) ($details['episodes'] ?? 0),
+                'season_num' => $seasonNum,
+            ]
+        ];
 
         $relations = $this->animeRelations($malId);
         foreach ($relations as $rel) {
-            if (strtolower($rel['relation'] ?? '') !== 'sequel') continue;
+            if (strtolower($rel['relation'] ?? '') !== 'sequel')
+                continue;
             foreach ($rel['entry'] as $entry) {
                 if ($entry['type'] === 'anime') {
-                    $sequelDetails = $this->animeDetails((int)$entry['mal_id']);
-                    $sequelType    = strtolower($sequelDetails['type'] ?? 'tv');
+                    $sequelDetails = $this->animeDetails((int) $entry['mal_id']);
+                    $sequelType = strtolower($sequelDetails['type'] ?? 'tv');
                     // Skip OVAs, movies, specials — only follow main TV sequels
-                    if (!in_array($sequelType, ['tv', 'ona'], true)) continue;
+                    if (!in_array($sequelType, ['tv', 'ona'], true))
+                        continue;
                     $chain = array_merge(
                         $chain,
-                        $this->walkSequels((int)$entry['mal_id'], $visited, $seasonNum + 1)
+                        $this->walkSequels((int) $entry['mal_id'], $visited, $seasonNum + 1)
                     );
                     break 2; // only one main sequel per entry
                 }

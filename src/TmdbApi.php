@@ -28,9 +28,9 @@ class TmdbApi
         $params['language'] = 'en-US';
         $url = TMDB_BASE . $endpoint . '?' . http_build_query($params);
 
-        // On XAMPP/Windows, point cURL at the bundled CA cert.
-        $caBundle  = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
-        $verifySsl = file_exists($caBundle);
+        // On XAMPP/Windows, point cURL at the bundled CA cert (set CURL_CA_BUNDLE in .env).
+        $caBundle  = CURL_CA_BUNDLE;
+        $verifySsl = $caBundle !== '' && file_exists($caBundle);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [

@@ -8,7 +8,7 @@ function authStart(): void {
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
-            'secure'   => false,
+            'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);

@@ -33,15 +33,15 @@ class ConsumetApi
         }
 
         $isLocalhost = in_array(parse_url($url, PHP_URL_HOST), ['localhost', '127.0.0.1', '::1'], true);
-        $caBundle    = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
-        $verifySsl   = !$isLocalhost && file_exists($caBundle);
+        $caBundle    = CURL_CA_BUNDLE;
+        $verifySsl   = !$isLocalhost && $caBundle !== '' && file_exists($caBundle);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTPHEADER     => ['Accept: application/json', 'User-Agent: StreamFlix/1.0'],
+            CURLOPT_HTTPHEADER     => ['Accept: application/json', 'User-Agent: ' . SITE_NAME . '/1.0'],
             CURLOPT_SSL_VERIFYPEER => $verifySsl,
             CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
             CURLOPT_CAINFO         => $verifySsl ? $caBundle : null,
