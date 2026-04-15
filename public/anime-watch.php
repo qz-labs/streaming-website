@@ -74,8 +74,9 @@ $today         = date('Y-m-d');
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($title) ?> &ndash; Episode <?= $episode ?> &ndash; <?= e(SITE_NAME) ?></title>
+  <?php require __DIR__ . '/partials/fonts.php'; ?>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/player.css?v=<?= filemtime(__DIR__ . '/assets/css/player.css') ?>">
 </head>
@@ -119,7 +120,9 @@ $today         = date('Y-m-d');
     </nav>
 
     <button class="ep-toggle-btn" id="ep-panel-toggle" title="Episode list">&#9776; Episodes</button>
-    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">&#x26F6;</button>
+    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">
+      <svg id="topbar-fs-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+    </button>
   </div>
 
   <!-- Status bar -->
@@ -333,25 +336,16 @@ $today         = date('Y-m-d');
   function loadPref()       { try { return localStorage.getItem(PREF_KEY) || 'sub'; } catch(_) { return 'sub'; } }
 
   // ── Mobile: overlay UI + auto-fullscreen ──────────────────────────────────
-  const isMobile  = window.matchMedia('(max-width: 640px)').matches;
+  // Covers portrait phones AND landscape phones (short + touch screen)
+  const isMobile  = window.matchMedia('(max-width: 640px)').matches ||
+                    window.matchMedia('(max-height: 500px) and (pointer: coarse)').matches;
   const playerPage = document.querySelector('.player-page');
   // iOS Safari does not support document.fullscreenEnabled / requestFullscreen;
   // it only exposes video.webkitEnterFullscreen on <video> elements.
+  // iOS Safari only exposes fullscreen via video.webkitEnterFullscreen, not
+  // document.requestFullscreen — detect it once and use throughout.
   const isIOS = !document.fullscreenEnabled &&
                 typeof video.webkitEnterFullscreen === 'function';
-  let fsTriggered = false;
-
-  function enterFullscreen() {
-    if (fsTriggered) return;
-    fsTriggered = true;
-    if (isIOS) {
-      if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
-      return;
-    }
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (req) req.call(el).catch(() => {});
-  }
 
   let hideTimer = null;
   function showControls() {
@@ -383,17 +377,17 @@ $today         = date('Y-m-d');
     const now    = Date.now();
     const target = e.target;
 
-    // Don't intercept taps on controls, dropdowns, or links
+    // Taps on control elements just reset the visibility timer
     if (target.closest('button, a, select, input, .sub-dropdown')) {
       showControls();
       return;
     }
 
-    const dt   = now - lastTapTime;
+    const dt    = now - lastTapTime;
     lastTapTime = now;
 
     if (dt < 300 && dt > 0) {
-      // Double-tap detected — seek instead of toggling controls
+      // Double-tap detected — seek left or right
       const rect = wrap.getBoundingClientRect();
       const tapX = e.touches[0].clientX - rect.left;
       if (tapX < rect.width / 2) {
@@ -403,13 +397,17 @@ $today         = date('Y-m-d');
         video.currentTime += 10;
         flashSeekIndicator(seekRightEl);
       }
-      lastTapTime = 0; // reset so a third tap doesn't double-seek
-      showControls();  // keep controls visible after seeking
+      lastTapTime = 0; // reset so a 3rd tap doesn't double-seek
+      showControls();
       return;
     }
 
-    // Single tap: enter fullscreen on first touch, then show controls
-    enterFullscreen();
+    // Single tap — Netflix-style:
+    //   Controls hidden  → reveal controls (don't play/pause yet)
+    //   Controls visible → toggle play/pause AND reset auto-hide timer
+    if (wrap.classList.contains('controls-visible')) {
+      togglePlay();
+    }
     showControls();
   }, { passive: true });
   wrap.addEventListener('mouseleave', () => {
@@ -455,7 +453,8 @@ $today         = date('Y-m-d');
   }
 
   btnPlay.addEventListener('click', togglePlay);
-  video.addEventListener('click', togglePlay);
+  // Desktop only — on mobile, touchstart handles play/pause to avoid double-fire
+  if (!isMobile) video.addEventListener('click', togglePlay);
   video.addEventListener('play',  updatePlayIcon);
   video.addEventListener('pause', () => { updatePlayIcon(); showControls(); });
 
@@ -549,12 +548,16 @@ $today         = date('Y-m-d');
     topbarFsBtn.addEventListener('click', toggleFullscreen);
   }
 
+  const FS_TOPBAR_ENTER = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
+  const FS_TOPBAR_EXIT  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
+
   function updateAllFsIcons() {
     updateFsIcon();
     if (topbarFsBtn) {
       const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement ||
                       (isIOS && video.webkitDisplayingFullscreen));
-      topbarFsBtn.innerHTML = inFs ? '&#x2715;' : '&#x26F6;';
+      const icon = topbarFsBtn.querySelector('svg');
+      if (icon) icon.innerHTML = '<path d="' + (inFs ? FS_TOPBAR_EXIT : FS_TOPBAR_ENTER) + '"/>';
       topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
     }
   }

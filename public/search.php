@@ -53,10 +53,11 @@ $activePage = '';
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>
     <?= $q ? 'Search: ' . e($q) . ' &ndash; ' : 'Search &ndash; ' ?><?= e(SITE_NAME) ?>
   </title>
+  <?php require __DIR__ . '/partials/fonts.php'; ?>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
 </head>
 <body>

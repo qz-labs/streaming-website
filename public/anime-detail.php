@@ -83,8 +83,9 @@ $activePage = 'anime';
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($title) ?> &ndash; <?= e(SITE_NAME) ?></title>
+  <?php require __DIR__ . '/partials/fonts.php'; ?>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
   <style>
     .anime-detail-hero {
@@ -99,13 +100,13 @@ $activePage = 'anime';
 <!-- Hero -->
 <section class="detail-hero anime-detail-hero">
   <div class="detail-content">
-    <img class="detail-poster" src="<?= e($poster) ?>" alt="<?= e($title) ?> poster">
+    <img class="detail-poster" src="<?= e($poster) ?>" alt="<?= e($title) ?> poster" width="200" height="300" loading="eager">
     <div class="detail-info">
 
       <?php if ($typeBadge): ?>
         <div style="margin-bottom:.5rem">
-          <span style="background:#7c3aed;color:#fff;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:2px;letter-spacing:.5px;"><?= e($typeBadge) ?></span>
-          <?php if ($status): ?><span style="color:var(--text-muted);font-size:.8rem;margin-left:.5rem;"><?= e($status) ?></span><?php endif; ?>
+          <span class="badge badge--type"><?= e($typeBadge) ?></span>
+          <?php if ($status): ?><span class="badge badge--status"><?= e($status) ?></span><?php endif; ?>
         </div>
       <?php endif; ?>
 

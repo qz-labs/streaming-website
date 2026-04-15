@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+/* Inter is loaded via <link> in each page's <head> (see partials/fonts.php) */
 
 /* ── Variables ───────────────────────────────────────────────────────────────── */
 :root {
@@ -38,6 +38,12 @@ img { display: block; max-width: 100%; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
 select { font-family: inherit; }
 ul { list-style: none; }
+
+/* Eliminate the 300ms tap delay on all interactive elements (all mobile browsers) */
+a, button, [role="button"], input, select, label, summary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* ── Skip-to-content (accessibility) ────────────────────────────────────────── */
 .skip-to-content {
@@ -109,7 +115,12 @@ ul { list-style: none; }
 .nav__search-btn {
   color: var(--text);
   font-size: 1.1rem;
-  padding: 4px;
+  padding: 10px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
   opacity: 0.85;
   transition: opacity var(--transition);
@@ -130,7 +141,7 @@ ul { list-style: none; }
 }
 
 .nav__search-input.open {
-  width: 200px;
+  width: min(200px, 45vw);
   opacity: 1;
 }
 
@@ -140,7 +151,7 @@ ul { list-style: none; }
 .nav__logout {
   font-size: 0.85rem;
   color: var(--text-muted);
-  padding: 0.35rem 0.75rem;
+  padding: 0.65rem 0.75rem;
   border: 1px solid #444;
   border-radius: var(--radius);
   white-space: nowrap;
@@ -154,6 +165,7 @@ ul { list-style: none; }
 .hero {
   position: relative;
   height: 85vh;
+  height: 85svh; /* svh = small viewport height; excludes browser chrome on iOS */
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
@@ -300,6 +312,8 @@ ul { list-style: none; }
   overflow-x: auto;
   scroll-behavior: smooth;
   padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
 }
 
 .row__track::-webkit-scrollbar { display: none; }
@@ -330,6 +344,10 @@ ul { list-style: none; }
 .row__arrow:hover  { background: rgba(20,20,20,0.95); }
 .row__arrow.hidden { display: none; }
 
+@media (hover: none) and (pointer: coarse) {
+  .row__arrow { display: none !important; }
+}
+
 /* ── Cards ───────────────────────────────────────────────────────────────────── */
 .card {
   flex-shrink: 0;
@@ -341,6 +359,7 @@ ul { list-style: none; }
   cursor: pointer;
   transition: transform 0.25s ease, box-shadow 0.25s ease, z-index 0s 0.25s;
   background: var(--bg-card);
+  scroll-snap-align: start;
 }
 
 .card:hover {
@@ -490,6 +509,18 @@ ul { list-style: none; }
 
 .detail-meta .rating { color: #46d369; font-weight: 700; }
 
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2em 0.6em;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.badge--type   { background: #7c3aed; color: #fff; }
+.badge--status { color: var(--text-muted); margin-left: 0.5rem; }
+
 .detail-genre {
   display: inline-block;
   border: 1px solid var(--text-dim);
@@ -592,7 +623,7 @@ ul { list-style: none; }
 
 .episode-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -653,6 +684,8 @@ ul { list-style: none; }
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--red);
+  padding: 8px 0;
+  min-height: 44px;
   transition: color var(--transition);
 }
 
@@ -895,13 +928,23 @@ ul { list-style: none; }
 @media (max-width: 768px) {
   :root { --card-width: 130px; --card-height: 195px; }
 
-  .hero { height: 65vh; }
+  .hero { height: 65vh; height: 65svh; }
   .hero__content { max-width: 95%; }
   .hero__overview { display: none; }
 
-  .nav__links { display: none; }
+  /* ── Mobile typography floors ── */
+  /* Body copy and key UI text must be readable without zooming */
+  .detail-overview,
+  .detail-tagline    { font-size: 1rem; }
+  .hero__meta        { font-size: 1rem; }
+  .episode-card__watch { font-size: 0.9rem; }
+  .genre-pill        { font-size: 0.875rem; }
+  .search-tab        { font-size: 0.9rem; }
 
-  .detail-hero { min-height: 420px; }
+  .nav__links { display: none; }
+  .nav__search-input.open { width: min(260px, 75vw); }
+
+  .detail-hero { min-height: min(420px, 60svh); }
   .detail-poster { display: none; }
   .detail-content { gap: 1.5rem; padding: 2rem 4% 1.5rem; }
 
@@ -972,8 +1015,8 @@ ul { list-style: none; }
   flex-direction: column;
   justify-content: center;
   gap: 5px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   padding: 4px;
   margin-left: 0.5rem;
   background: none;
@@ -1005,6 +1048,7 @@ ul { list-style: none; }
   transform: translateY(-110%);
   transition: transform 0.3s ease;
   border-bottom: 1px solid #222;
+  -webkit-backdrop-filter: blur(10px); /* Safari < 15.4 */
   backdrop-filter: blur(10px);
 }
 
@@ -1014,7 +1058,7 @@ ul { list-style: none; }
 
 .nav__drawer ul li a {
   display: block;
-  padding: 0.85rem 0;
+  padding: 1rem 0;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -1104,6 +1148,7 @@ ul { list-style: none; }
 }
 
 .hero__dot {
+  position: relative; /* needed for the ::after hit-area expansion */
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -1112,6 +1157,13 @@ ul { list-style: none; }
   cursor: pointer;
   padding: 0;
   transition: background var(--transition), transform var(--transition), width var(--transition);
+}
+
+/* Expand tap target to 44×44 without changing the visible size */
+.hero__dot::after {
+  content: '';
+  position: absolute;
+  inset: -18px;
 }
 
 .hero__dot.active {
@@ -1140,11 +1192,11 @@ ul { list-style: none; }
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  padding-bottom: 0.25rem;
+  padding: 0 4% 0.25rem; /* horizontal padding matches .rows-container */
 }
 
-/* On small screens go back to horizontal scroll */
-@media (max-width: 640px) {
+/* On mobile go to horizontal scroll (768px catches tablets and large phones) */
+@media (max-width: 768px) {
   .genre-filters {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1152,6 +1204,24 @@ ul { list-style: none; }
     padding-bottom: 4px;
   }
   .genre-filters::-webkit-scrollbar { display: none; }
+  .genre-pill { flex-shrink: 0; }
+}
+
+/* ── Small phones (≤ 479px) ──────────────────────────────────────────────────── */
+@media (max-width: 479px) {
+  :root { --card-width: 110px; --card-height: 165px; }
+  .detail-title { font-size: clamp(1.4rem, 8vw, 1.8rem); }
+  .detail-content { padding: 1.5rem 4% 1rem; }
+  .episode-card__still-wrap,
+  .episode-card > a { width: 110px; min-width: 110px; }
+  .episode-card__still { width: 110px; height: 66px; }
+}
+
+/* ── Landscape phones (wide but short) ───────────────────────────────────────── */
+@media (max-height: 500px) and (pointer: coarse) {
+  .hero { height: 100svh; }
+  .hero__overview { display: none; }
+  .nav { --nav-height: 48px; }
 }
 
 .genre-pill {
@@ -1160,7 +1230,7 @@ ul { list-style: none; }
   color: var(--text-muted);
   border: 1px solid rgba(255,255,255,0.11);
   border-radius: 20px;
-  padding: 5px 15px;
+  padding: 10px 15px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -1210,8 +1280,8 @@ ul { list-style: none; }
   position: fixed;
   bottom: 2rem;
   right: 2rem;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   background: var(--red);
   color: #fff;
   border: none;
@@ -1249,7 +1319,7 @@ ul { list-style: none; }
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  padding: 0.55rem 1.1rem;
+  padding: 0.75rem 1.1rem;
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;

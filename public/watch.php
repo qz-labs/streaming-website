@@ -85,8 +85,9 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= $pageTitle ?> &ndash; <?= e(SITE_NAME) ?></title>
+  <?php require __DIR__ . '/partials/fonts.php'; ?>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/player.css?v=<?= filemtime(__DIR__ . '/assets/css/player.css') ?>">
 </head>
@@ -151,7 +152,9 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     </nav>
     <button class="ep-toggle-btn" id="ep-panel-toggle" title="Episode list">&#9776; Episodes</button>
     <?php endif; ?>
-    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">&#x26F6;</button>
+    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">
+      <svg id="topbar-fs-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+    </button>
   </div>
 
   <!-- Status line -->
@@ -356,65 +359,45 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
 
   autoDetect();
 
-  // ── Mobile: overlay UI + auto-fullscreen ─────────────────────────────────
-  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+  // ── Mobile: Netflix-style overlay UI ─────────────────────────────────────
+  // Covers portrait phones AND landscape phones (short + touch screen)
+  const isMobile = window.matchMedia('(max-width: 640px)').matches ||
+                   window.matchMedia('(max-height: 500px) and (pointer: coarse)').matches;
   const playerPage = document.querySelector('.player-page');
-  // iOS Safari does not support document.requestFullscreen; detect it via a
-  // temporary video element (no actual video element exists on this page).
-  const isIOS = !document.fullscreenEnabled &&
-                typeof document.createElement('video').webkitEnterFullscreen === 'function';
 
   if (isMobile && playerPage) {
     let uiTimer = null;
-    let fsTriggered = false;
 
     function showUI() {
       playerPage.classList.remove('ui-hidden');
       clearTimeout(uiTimer);
+      // Auto-hide after 3.5 s of no interaction
       uiTimer = setTimeout(() => playerPage.classList.add('ui-hidden'), 3500);
     }
 
-    function enterFullscreen() {
-      if (fsTriggered) return;
-      fsTriggered = true;
-      if (isIOS) {
-        // iOS Safari: try to fullscreen the iframe element itself.
-        // Cross-origin iframes may silently refuse; the provider's own
-        // fullscreen button inside the iframe remains the fallback.
-        const iframeEl = document.getElementById('player-iframe');
-        if (iframeEl && iframeEl.webkitRequestFullscreen) {
-          iframeEl.webkitRequestFullscreen();
-        }
-        return;
-      }
-      const el = document.documentElement;
-      const req = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (req) req.call(el).catch(() => {});
-    }
+    // Any touch resets the auto-hide timer and shows controls
+    document.addEventListener('touchstart', showUI, { passive: true });
 
-    // On first touch anywhere: enter fullscreen + show UI
-    document.addEventListener('touchstart', (e) => {
-      // Don't intercept taps on actual buttons/links
-      if (!e.target.closest('button, a, select, input')) enterFullscreen();
-      showUI();
-    }, { passive: true });
-
-    // Topbar buttons should also show UI when tapped
-    document.querySelector('.player-topbar').addEventListener('touchstart', showUI, { passive: true });
-
-    // Start hidden — first touch reveals UI
+    // Start hidden; reveal briefly so the user sees controls exist
     playerPage.classList.add('ui-hidden');
-    // Show briefly on load so user knows controls exist
     showUI();
   }
 
-  // ── Topbar fullscreen button (desktop fallback) ───────────────────────────
-  const topbarFsBtn = document.getElementById('topbar-fs-btn');
+  // ── Topbar fullscreen button ──────────────────────────────────────────────
+  // iOS Safari: document.requestFullscreen is not supported; only
+  // video.webkitEnterFullscreen works, but we have an iframe here.
+  // We detect iOS via the absence of the standard API.
+  const isIOS = !document.fullscreenEnabled &&
+                typeof document.createElement('video').webkitEnterFullscreen === 'function';
+
+  const topbarFsBtn     = document.getElementById('topbar-fs-btn');
   const playerFrameWrap = document.querySelector('.player-frame-wrap');
+
   if (topbarFsBtn && playerFrameWrap) {
     topbarFsBtn.addEventListener('click', () => {
       if (isIOS) {
-        // iOS Safari: try iframe.webkitRequestFullscreen; no-op if blocked
+        // iOS: try webkit fullscreen on the iframe itself; may be blocked
+        // by cross-origin policy — provider's own fullscreen is the fallback.
         const iframeEl = document.getElementById('player-iframe');
         if (iframeEl && iframeEl.webkitRequestFullscreen) {
           iframeEl.webkitRequestFullscreen();
@@ -422,15 +405,21 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
         return;
       }
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        // Mobile: fullscreen the whole page so our topbar overlay is included
         const el = isMobile ? document.documentElement : playerFrameWrap;
         (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});
       } else {
         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
       }
     });
+
+    const FS_ENTER_PATH = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
+    const FS_EXIT_PATH  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
+
     function updateTopbarFsIcon() {
       const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-      topbarFsBtn.innerHTML = inFs ? '&#x2715;' : '&#x26F6;';
+      const icon = topbarFsBtn.querySelector('svg');
+      if (icon) icon.innerHTML = '<path d="' + (inFs ? FS_EXIT_PATH : FS_ENTER_PATH) + '"/>';
       topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
     }
     document.addEventListener('fullscreenchange',       updateTopbarFsIcon);

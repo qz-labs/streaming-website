@@ -70,7 +70,7 @@ $admin    = currentUser();
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Admin Panel – <?= htmlspecialchars(SITE_NAME) ?></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -154,7 +154,8 @@ $admin    = currentUser();
     .badge-green { background: var(--green); }
 
     /* Table */
-    .user-table { width: 100%; border-collapse: collapse; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .user-table { width: 100%; border-collapse: collapse; min-width: 600px; }
     .user-table th, .user-table td {
       text-align: left;
       padding: 0.7rem 0.9rem;
@@ -215,6 +216,7 @@ $admin    = currentUser();
       <?php endif; ?>
     </div>
     <div class="card">
+      <div class="table-wrap">
       <table class="user-table">
         <thead>
           <tr>
@@ -250,6 +252,7 @@ $admin    = currentUser();
           <?php endif; ?>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 
@@ -260,6 +263,7 @@ $admin    = currentUser();
       <span class="badge badge-green"><?= count($approved) ?></span>
     </div>
     <div class="card">
+      <div class="table-wrap">
       <table class="user-table">
         <thead>
           <tr>
@@ -295,6 +299,7 @@ $admin    = currentUser();
           <?php endif; ?>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 
@@ -306,6 +311,7 @@ $admin    = currentUser();
       <span class="badge badge-gray"><?= count($rejected) ?></span>
     </div>
     <div class="card">
+      <div class="table-wrap">
       <table class="user-table">
         <thead>
           <tr>
@@ -337,6 +343,7 @@ $admin    = currentUser();
           <?php endforeach; ?>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
   <?php endif; ?>

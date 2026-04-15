@@ -48,7 +48,7 @@ $year     = yearFromDate($show['first_air_date'] ?? null);
 $rating   = isset($show['vote_average']) ? ratingBadge((float)$show['vote_average']) : '';
 $genres   = $show['genres'] ?? [];
 $cast     = array_slice($show['credits']['cast'] ?? [], 0, 12);
-$backdrop = backdropUrl($show['backdrop_path'] ?? null);
+$backdrop = backdropUrl($show['backdrop_path'] ?? null, 'w780');
 $poster   = imgUrl($show['poster_path'] ?? null, 'w342');
 $numSeasons = count($seasons);
 
@@ -64,8 +64,9 @@ $activePage = '';
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($title) ?> &ndash; <?= e(SITE_NAME) ?></title>
+  <?php require __DIR__ . '/partials/fonts.php'; ?>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
 </head>
 <body>

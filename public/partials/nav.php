@@ -24,6 +24,7 @@ $_navAdmin = $_navUser && $_navUser['role'] === 'admin';
         class="nav__search-input"
         id="nav-search-input"
         type="search"
+        inputmode="search"
         name="q"
         placeholder="Search titles..."
         autocomplete="off"

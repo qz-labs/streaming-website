@@ -22,13 +22,14 @@ $hero     = !empty($heroPool) ? $heroPool[0] : ($trending[0] ?? null);
 $heroSlides = array_map(function ($m) {
     $isMovie = !empty($m['title']);
     return [
-        'backdrop'  => backdropUrl($m['backdrop_path'] ?? null),
-        'title'     => $m['title'] ?? $m['name'] ?? '',
-        'overview'  => truncate($m['overview'] ?? '', 160),
-        'watchUrl'  => $isMovie ? movieWatchUrl((int)$m['id']) : tvWatchUrl((int)$m['id'], 1, 1),
-        'detailUrl' => BASE_URL . ($isMovie ? '/movie.php?id=' : '/tv.php?id=') . (int)$m['id'],
-        'rating'    => isset($m['vote_average']) ? ratingBadge((float)$m['vote_average']) : '',
-        'year'      => yearFromDate($m['release_date'] ?? $m['first_air_date'] ?? null),
+        'backdrop'   => backdropUrl($m['backdrop_path'] ?? null),         // w1280 — JS uses on desktop
+        'backdropSm' => backdropUrl($m['backdrop_path'] ?? null, 'w780'), // w780  — JS uses on mobile
+        'title'      => $m['title'] ?? $m['name'] ?? '',
+        'overview'   => truncate($m['overview'] ?? '', 160),
+        'watchUrl'   => $isMovie ? movieWatchUrl((int)$m['id']) : tvWatchUrl((int)$m['id'], 1, 1),
+        'detailUrl'  => BASE_URL . ($isMovie ? '/movie.php?id=' : '/tv.php?id=') . (int)$m['id'],
+        'rating'     => isset($m['vote_average']) ? ratingBadge((float)$m['vote_average']) : '',
+        'year'       => yearFromDate($m['release_date'] ?? $m['first_air_date'] ?? null),
     ];
 }, array_slice($heroPool, 0, 5));
 
@@ -54,8 +55,9 @@ $activePage = 'home';
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e(SITE_NAME) ?> &ndash; Watch Free Movies &amp; TV</title>
+  <?php require __DIR__ . '/partials/fonts.php'; ?>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
 </head>
 <body>
@@ -71,7 +73,8 @@ $activePage = 'home';
 ?>
 <section
   class="hero"
-  style="background-image: url('<?= e(backdropUrl($hero['backdrop_path'] ?? null)) ?>')"
+  style="background-image: url('<?= e(backdropUrl($hero['backdrop_path'] ?? null, 'w780')) ?>')"
+  data-backdrop-lg="<?= e(backdropUrl($hero['backdrop_path'] ?? null)) ?>"
   data-slides="<?= e(json_encode($heroSlides)) ?>"
 >
   <div class="hero__content">

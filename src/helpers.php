@@ -11,8 +11,9 @@ function e(string $v): string
 
 /**
  * Full TMDB poster URL, or an inline SVG placeholder when path is absent.
+ * Default size w342 (342 px) is sufficient for card thumbnails at 2× retina.
  */
-function imgUrl(?string $path, string $size = 'w500'): string
+function imgUrl(?string $path, string $size = 'w342'): string
 {
     if (!$path) {
         // Dark-gray placeholder with a film-frame icon
@@ -23,11 +24,12 @@ function imgUrl(?string $path, string $size = 'w500'): string
 
 /**
  * Full TMDB backdrop URL (wide format), or empty string.
+ * $size: 'w780' for mobile/detail pages, 'w1280' for desktop hero (default).
  */
-function backdropUrl(?string $path): string
+function backdropUrl(?string $path, string $size = 'w1280'): string
 {
     if (!$path) return '';
-    return TMDB_IMAGE_BASE . '/w1280' . $path;
+    return TMDB_IMAGE_BASE . '/' . $size . $path;
 }
 
 /**

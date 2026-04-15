@@ -148,8 +148,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── 6. Hero carousel ─────────────────────────────────────────────────────────
   const heroSection = document.querySelector('.hero[data-slides]');
   if (heroSection) {
+    // Upgrade the static (PHP-rendered) hero background to w1280 on large screens.
+    // PHP sets a w780 bg by default; the lg URL is stored in data-backdrop-lg.
+    if (window.innerWidth > 768 && heroSection.dataset.backdropLg) {
+      heroSection.style.backgroundImage = "url('" + heroSection.dataset.backdropLg + "')";
+    }
+
     let slides;
     try { slides = JSON.parse(heroSection.dataset.slides); } catch { slides = []; }
+
+    // Pick the right backdrop size based on the current viewport.
+    // slide.backdrop = w1280 (desktop), slide.backdropSm = w780 (mobile)
+    const pickBg = (s) => (window.innerWidth > 768 && s.backdrop)
+      ? s.backdrop
+      : (s.backdropSm || s.backdrop || '');
 
     if (slides.length > 1) {
       let current = 0;
@@ -158,7 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const slideDivs = slides.map((s, i) => {
         const div = document.createElement('div');
         div.className = 'hero__slide' + (i === 0 ? ' active' : '');
-        if (s.backdrop) div.style.backgroundImage = "url('" + s.backdrop + "')";
+        const bg = pickBg(s);
+        if (bg) div.style.backgroundImage = "url('" + bg + "')";
         heroSection.insertBefore(div, heroSection.firstChild);
         return div;
       });
@@ -199,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ratingEl && s.rating) ratingEl.textContent = '\u2605 ' + s.rating;
         if (yearEl)     yearEl.textContent   = s.year || '';
         // Update blurred anime background when slide changes
-        if (heroBgImg && s.backdrop) heroBgImg.src = s.backdrop;
+        if (heroBgImg && (s.backdrop || s.backdropSm)) heroBgImg.src = pickBg(s);
       }
 
       let timer = setInterval(() => goTo(current + 1), 7000);
@@ -208,6 +221,18 @@ document.addEventListener('DOMContentLoaded', () => {
       // Pause auto-advance while the user hovers over the hero
       heroSection.addEventListener('mouseenter', () => clearInterval(timer));
       heroSection.addEventListener('mouseleave', () => resetTimer());
+
+      // Touch swipe support
+      let touchStartX = 0;
+      heroSection.addEventListener('touchstart', e => {
+        touchStartX = e.touches[0].clientX;
+        clearInterval(timer);
+      }, { passive: true });
+      heroSection.addEventListener('touchend', e => {
+        const delta = touchStartX - e.changedTouches[0].clientX;
+        if (Math.abs(delta) > 40) goTo(current + (delta > 0 ? 1 : -1));
+        resetTimer();
+      }, { passive: true });
     }
   }
 

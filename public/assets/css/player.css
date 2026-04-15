@@ -4,6 +4,9 @@ html, body {
   padding: 0;
   background: #000;
   height: 100%;
+  /* Use -webkit-fill-available so iOS Safari fills the visible area,
+     not the theoretical full viewport (which includes hidden browser chrome) */
+  height: -webkit-fill-available;
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -12,9 +15,15 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  height: 100dvh;
+  height: 100dvh;           /* Dynamic viewport — shrinks with browser bar */
   background: #000;
   overflow: hidden;
+}
+
+/* iOS Safari < 15.4: 100dvh not supported; -webkit-fill-available fills
+   the visible area instead of the theoretical 100vh                       */
+@supports (-webkit-touch-callout: none) and (not (height: 100dvh)) {
+  .player-page { height: -webkit-fill-available; }
 }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────────── */
@@ -27,7 +36,7 @@ html, body {
   flex-shrink: 0;
   background: rgba(0,0,0,0.95);
   z-index: 30;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .player-back {
@@ -132,8 +141,11 @@ html, body {
   position: relative;
   background: #000;
   overflow: hidden;
+  overscroll-behavior: none;  /* prevent pull-to-refresh swallowing touches */
   cursor: none;
   min-height: 0;
+  /* Ensure the frame fills available space on older Android WebView */
+  -webkit-overflow-scrolling: touch;
 }
 .player-frame-wrap.controls-visible { cursor: default; }
 
@@ -593,11 +605,15 @@ html, body {
   cursor: pointer;
   font-size: 1rem;
   line-height: 1;
-  padding: 4px 7px;
+  padding: 5px 8px;
   flex-shrink: 0;
   font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background .15s, color .15s;
 }
+.topbar-fs-btn svg { display: block; }
 .topbar-fs-btn:hover { background: #2a2a2a; color: #ccc; }
 
 /* ── Touch interaction optimization (eliminates 300ms tap delay) ─────────────── */
@@ -622,9 +638,11 @@ html, body {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   MOBILE  ≤ 640 px
+   MOBILE  — portrait phones (≤ 640 px wide) OR landscape phones (≤ 500 px tall
+   on a touch device).  The second clause catches phones rotated sideways where
+   width > 640 px but the screen is still phone-sized.
    ══════════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
 
   /* --- Page shell ------------------------------------------------------------ */
   html, body {
@@ -655,10 +673,15 @@ html, body {
     position: absolute;
     top: 0; left: 0; right: 0;
     z-index: 30;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+    background: linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0) 100%);
     flex-wrap: wrap;
     height: auto;
-    padding: 5px 10px 20px;   /* extra bottom padding fades into gradient */
+    /* Push content below the notch/Dynamic Island on iPhones;
+       env() requires viewport-fit=cover in the <meta viewport> tag */
+    padding-top:    max(8px, env(safe-area-inset-top, 8px));
+    padding-bottom: 20px;   /* fades into gradient */
+    padding-left:   max(10px, env(safe-area-inset-left, 10px));
+    padding-right:  max(10px, env(safe-area-inset-right, 10px));
     row-gap: 4px;
     column-gap: 6px;
   }
@@ -668,21 +691,26 @@ html, body {
     display: none;
   }
 
-  /* UI hidden: topbar slides up and disappears */
+  /* UI hidden: topbar slides up and fades out */
   .player-page.ui-hidden .player-topbar {
     opacity: 0;
     pointer-events: none;
     transform: translateY(-100%);
   }
 
+  /* Bottom controls (anime player) also hide when UI is hidden */
+  .player-page.ui-hidden .custom-controls {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   /* Row 1: ← Back  |  Show Title  (break forces next items to row 2) */
   .player-topbar-break { display: block; }
 
   .player-back {
-    /* Bigger touch target */
     font-size: 1.2rem;
     padding: 6px 8px 6px 0;
-    min-height: 36px;
+    min-height: 44px;
     display: flex;
     align-items: center;
   }
@@ -706,8 +734,7 @@ html, body {
   .lang-btn {
     padding: 7px 11px;
     font-size: 0.72rem;
-    /* Minimum 36 px touch target height */
-    min-height: 36px;
+    min-height: 44px;
     display: flex;
     align-items: center;
   }
@@ -720,7 +747,7 @@ html, body {
   .ep-nav a, .ep-nav span {
     padding: 7px 12px;
     font-size: 0.72rem;
-    min-height: 36px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
   }
@@ -728,7 +755,7 @@ html, body {
   .ep-toggle-btn {
     padding: 7px 9px;
     font-size: 0.68rem;
-    min-height: 36px;
+    min-height: 44px;
     display: flex;
     align-items: center;
   }
@@ -745,21 +772,19 @@ html, body {
   .source-btns::-webkit-scrollbar { display: none; }
 
   .src-btn {
-    padding: 6px 12px;
-    font-size: 0.7rem;
-    min-height: 32px;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    min-height: 44px;
     white-space: nowrap;
   }
 
   .topbar-fs-btn {
     padding: 7px 10px;
-    font-size: 1.1rem;
-    min-height: 36px;
-    display: flex;
-    align-items: center;
-    /* Make the button more prominent on mobile */
-    border-color: #555;
-    color: #ccc;
+    min-height: 44px;
+    min-width: 44px;
+    /* More prominent on mobile */
+    border-color: #666;
+    color: #ddd;
   }
 
   /* --- Video controls -------------------------------------------------------- */
@@ -786,8 +811,8 @@ html, body {
   /* Bigger touch targets for all control buttons */
   .ctrl-btn {
     padding: 9px;
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
   }
   .ctrl-btn svg { width: 22px; height: 22px; }
 
@@ -798,9 +823,12 @@ html, body {
   }
   .volume-slider { width: 60px; }
 
-  /* Custom controls: extra bottom padding for the iOS home bar */
+  /* Custom controls: extra bottom padding for iOS home bar / Android nav bar */
   .custom-controls {
-    padding: 30px 10px max(12px, env(safe-area-inset-bottom, 12px));
+    padding: 30px
+             max(10px, env(safe-area-inset-right, 10px))
+             max(14px, env(safe-area-inset-bottom, 14px))
+             max(10px, env(safe-area-inset-left, 10px));
     gap: 10px;
   }
 
@@ -829,19 +857,20 @@ html, body {
   }
 }
 
-/* ── Landscape mobile: notch/camera safe-area for left/right insets ─────────── */
-@media (orientation: landscape) and (max-width: 900px) {
+/* ── Landscape mobile: notch / camera safe-area for left/right insets ───────── */
+/* Covers any touch device in landscape (phones AND tablets)                     */
+@media (orientation: landscape) and (pointer: coarse) {
 
-  /* Pad away from left/right notch in landscape */
+  /* Pad away from left/right notch / rounded corners in landscape */
   .player-topbar {
-    padding-left:  max(10px, env(safe-area-inset-left,  0px));
-    padding-right: max(10px, env(safe-area-inset-right, 0px));
+    padding-left:  max(12px, env(safe-area-inset-left,  0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
   }
 
   /* Controls row: pad away from notch on both sides */
   .custom-controls {
-    padding-left:  max(10px, env(safe-area-inset-left,  0px));
-    padding-right: max(10px, env(safe-area-inset-right, 0px));
+    padding-left:  max(12px, env(safe-area-inset-left,  0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
   }
 }
 
