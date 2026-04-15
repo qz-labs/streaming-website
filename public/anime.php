@@ -8,16 +8,12 @@ require_once __DIR__ . '/../src/JikanApi.php';
 
 $jikan = new JikanApi();
 
-$seasonal     = $jikan->seasonalAnime();
-$topAiring    = $jikan->topAnime('tv',      'airing');
-$topTv        = $jikan->topAnime('tv',      'bypopularity');
-$topFavorite  = $jikan->topAnime('tv',      'favorite');
-$upcomingTv   = $jikan->topAnime('tv',      'upcoming');
-$topMovies    = $jikan->topAnime('movie',   'bypopularity');
-$topFavMovies = $jikan->topAnime('movie',   'favorite');
-$topOva       = $jikan->topAnime('ova',     'bypopularity');
-$topOna       = $jikan->topAnime('ona',     'bypopularity');
-$topSp        = $jikan->topAnime('special', 'bypopularity');
+// 5 calls max — Jikan rate-limit is 3 req/sec; cache handles subsequent loads.
+$seasonal    = $jikan->seasonalAnime();
+$topAiring   = $jikan->topAnime('tv',    'airing');
+$topTv       = $jikan->topAnime('tv',    'bypopularity');
+$topMovies   = $jikan->topAnime('movie', 'bypopularity');
+$topFavorite = $jikan->topAnime('tv',    'favorite');
 
 // Pick a hero from seasonal anime that has an image
 $heroPool = array_values(array_filter($seasonal, fn($a) => !empty($a['images']['jpg']['large_image_url'])));
@@ -39,7 +35,7 @@ $heroSlides = array_map(function ($a) {
 
 // Anime genre pills (Jikan genre objects have mal_id + name)
 $usedAnimeGenres = [];
-foreach (array_merge($seasonal, $topAiring, $topTv, $topFavorite, $topMovies) as $a) {
+foreach ([...$seasonal, ...$topAiring, ...$topTv, ...$topFavorite, ...$topMovies] as $a) {
     foreach ($a['genres'] ?? [] as $g) {
         $usedAnimeGenres[(int)$g['mal_id']] = $g['name'];
     }
@@ -118,12 +114,7 @@ $activePage = 'anime';
   <?php if (!empty($topAiring)):   renderAnimeRow('Top Airing Now',        $topAiring);   endif; ?>
   <?php renderAnimeRow('Most Popular Series',      $topTv);       ?>
   <?php if (!empty($topFavorite)): renderAnimeRow('All-Time Fan Favorites', $topFavorite); endif; ?>
-  <?php if (!empty($upcomingTv)):  renderAnimeRow('Coming Soon',            $upcomingTv);  endif; ?>
   <?php renderAnimeRow('Popular Anime Movies',     $topMovies);   ?>
-  <?php if (!empty($topFavMovies)): renderAnimeRow('Beloved Movies',        $topFavMovies); endif; ?>
-  <?php if (!empty($topOva)):      renderAnimeRow('Top OVAs',               $topOva);      endif; ?>
-  <?php if (!empty($topOna)):      renderAnimeRow('Top ONAs',               $topOna);      endif; ?>
-  <?php if (!empty($topSp)):       renderAnimeRow('Specials',               $topSp);       endif; ?>
 </main>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>

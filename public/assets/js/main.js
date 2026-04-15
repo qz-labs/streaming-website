@@ -82,9 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // of passing them up to the page. Fix: intercept pure-vertical wheel
     // events and redirect them to the window so the page scrolls normally.
     track.addEventListener('wheel', (e) => {
+      // Only intercept pure vertical wheel events so the page scrolls normally.
+      // Do NOT specify behavior — inherits scroll-behavior: smooth from <html>.
       if (e.deltaX === 0 && e.deltaY !== 0) {
         e.preventDefault();
-        window.scrollBy({ top: e.deltaY, behavior: 'instant' });
+        window.scrollBy({ top: e.deltaY });
       }
     }, { passive: false });
   });

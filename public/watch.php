@@ -21,6 +21,9 @@ if ($type === 'tv' && ($season <= 0 || $episode <= 0)) {
     exit;
 }
 
+// Allow fullscreen requests from embedded iframes (vidsrc etc.)
+header('Permissions-Policy: fullscreen=*');
+
 // ── Metadata (cached) ─────────────────────────────────────────────────────────
 $api  = new TmdbApi();
 $meta = ($type === 'movie') ? $api->movieDetails($id) : $api->tvDetails($id);
@@ -100,8 +103,9 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   <!-- Left / main column -->
   <div class="watch-main">
 
-    <!-- Top bar: title + fullscreen -->
+    <!-- Top bar: back + title + fullscreen -->
     <div class="player-topbar">
+      <a class="player-back" href="<?= e($backUrl) ?>" title="Back">&#8592;</a>
       <span class="player-title">
         <?= e($title) ?>
         <?php if ($type === 'tv'): ?>
@@ -209,7 +213,7 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
         <?php foreach ($tvEpisodes as $ep): ?>
           <?php
             $epN     = (int)($ep['episode_number'] ?? 0);
-            $epT     = $ep['name'] ?? 'Episode ' . $epN;
+            $epT     = $ep['name'] ?? "Episode $epN";
             $epUrl   = tvWatchUrl($id, $season, $epN);
             $isCurr  = $epN === $episode;
             $epThumb = !empty($ep['still_path']) ? stillUrl($ep['still_path']) : null;
@@ -348,17 +352,20 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   const topbarFsBtn = document.getElementById('topbar-fs-btn');
 
   if (topbarFsBtn && frameWrap) {
-    const isIOS = !document.fullscreenEnabled &&
-                  typeof document.createElement('video').webkitEnterFullscreen === 'function';
+    const iframeEl = document.getElementById('player-iframe');
 
     topbarFsBtn.addEventListener('click', () => {
-      if (isIOS) {
-        const iframeEl = document.getElementById('player-iframe');
-        if (iframeEl && iframeEl.webkitRequestFullscreen) iframeEl.webkitRequestFullscreen();
-        return;
-      }
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        (frameWrap.requestFullscreen || frameWrap.webkitRequestFullscreen).call(frameWrap).catch(() => {});
+        // Try the iframe first (lets vidsrc's own player go fullscreen natively),
+        // fall back to the wrapper div if the browser blocks iframe fullscreen.
+        const el = iframeEl || frameWrap;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) {
+          req.call(el).catch(() => {
+            const fallback = frameWrap.requestFullscreen || frameWrap.webkitRequestFullscreen;
+            if (fallback) fallback.call(frameWrap).catch(() => {});
+          });
+        }
       } else {
         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
       }

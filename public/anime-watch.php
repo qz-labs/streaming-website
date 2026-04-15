@@ -15,6 +15,9 @@ if ($malId <= 0 || $episode <= 0) {
     exit;
 }
 
+// Allow fullscreen requests from embedded iframes
+header('Permissions-Policy: fullscreen=*');
+
 // ── Anime metadata ─────────────────────────────────────────────────────────────
 $jikan = new JikanApi();
 $anime = $jikan->animeDetails($malId);
@@ -93,8 +96,9 @@ $today         = date('Y-m-d');
   <!-- Left / main column -->
   <div class="watch-main">
 
-    <!-- Topbar: title + fullscreen -->
+    <!-- Topbar: back + title + fullscreen -->
     <div class="player-topbar">
+      <a class="player-back" href="<?= e($backUrl) ?>" title="Back">&#8592;</a>
       <span class="player-title">
         <?= e($title) ?>
         <?php if (count($sequelChain) > 1): ?>
@@ -239,7 +243,7 @@ $today         = date('Y-m-d');
         <?php foreach ($panelEpisodes as $ep): ?>
           <?php
             $epN        = (int)($ep['mal_id'] ?? 0);
-            $epT        = $ep['title'] ?? 'Episode ' . $epN;
+            $epT        = $ep['title'] ?? "Episode $epN";
             $epD        = substr($ep['aired'] ?? '', 0, 10);
             $epUrl      = animeWatchUrl($malId, $epN);
             $isCurr     = $epN === $episode;

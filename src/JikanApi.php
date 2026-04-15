@@ -16,6 +16,10 @@ class JikanApi
 
     private function fetch(string $endpoint, array $params = [], int $attempt = 1): array
     {
+        // Throttle to stay under Jikan's 3 req/sec limit.
+        // Only applies to real HTTP calls — cache hits never reach this method.
+        usleep(350_000); // 350 ms → max ~2.8 req/sec
+
         $url = self::BASE . $endpoint;
         if (!empty($params)) {
             $url .= '?' . http_build_query($params);

@@ -1085,9 +1085,47 @@ a, button, [role="button"], input, select, label, summary {
 .nav__drawer ul li a:hover,
 .nav__drawer ul li a.active { color: var(--text); }
 
+/* Search form inside hamburger drawer */
+.nav__drawer-search {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border: 1px solid #2a2a2a;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.nav__drawer-search input {
+  flex: 1;
+  background: #111;
+  border: none;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  outline: none;
+  min-width: 0;
+  font-family: inherit;
+}
+
+.nav__drawer-search input::placeholder { color: var(--text-dim); }
+
+.nav__drawer-search button {
+  background: var(--red);
+  border: none;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+.nav__drawer-search button:hover { background: var(--red-hover); }
+
 @media (max-width: 768px) {
   .nav__hamburger { display: flex; }
-  .nav__search { margin-left: auto; }
+  /* Hide search bar and sign-out button — both live in the hamburger drawer */
+  .nav__search  { display: none; }
+  .nav__logout  { display: none; }
 }
 
 /* ── Card play button ────────────────────────────────────────────────────────── */
