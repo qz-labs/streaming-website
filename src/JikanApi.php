@@ -16,9 +16,16 @@ class JikanApi
 
     private function fetch(string $endpoint, array $params = [], int $attempt = 1): array
     {
-        // Throttle to stay under Jikan's 3 req/sec limit.
-        // Only applies to real HTTP calls — cache hits never reach this method.
-        usleep(350_000); // 350 ms → max ~2.8 req/sec
+        // Adaptive throttle: only sleep the remaining time since the last real request.
+        // Stays under Jikan's 3 req/sec limit without blocking when requests are
+        // naturally spaced further apart (e.g. the first call, or after a cache miss).
+        static $lastRequestAt = 0.0;
+        $now     = microtime(true);
+        $elapsed = $now - $lastRequestAt;
+        if ($lastRequestAt > 0.0 && $elapsed < 0.35) {
+            usleep((int)((0.35 - $elapsed) * 1_000_000));
+        }
+        $lastRequestAt = microtime(true);
 
         $url = self::BASE . $endpoint;
         if (!empty($params)) {
@@ -82,10 +89,19 @@ class JikanApi
         }
 
         $data = $this->fetch($endpoint, $params);
+
         if (!empty($data)) {
             file_put_contents($file, json_encode($data));
+            return $data;
         }
-        return $data;
+
+        // API failed — serve stale cache (any age) rather than an empty row
+        if (file_exists($file)) {
+            $stale = json_decode(file_get_contents($file), true);
+            if (is_array($stale)) return $stale;
+        }
+
+        return [];
     }
 
     /** Return the data[] array from a list endpoint. */

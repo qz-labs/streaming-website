@@ -42,6 +42,29 @@ foreach ([...$seasonal, ...$topAiring, ...$topTv, ...$topFavorite, ...$topMovies
 }
 asort($usedAnimeGenres);
 
+// Continue Watching + Favorites (anime only)
+$user = currentUser();
+$continueWatching = [];
+$myFavorites      = [];
+if ($user) {
+    require_once __DIR__ . '/../src/Database.php';
+    $stmt = Database::get()->prepare(
+        "SELECT * FROM watch_progress
+         WHERE user_id = ? AND content_type = 'anime'
+         ORDER BY updated_at DESC LIMIT 20"
+    );
+    $stmt->execute([$user['id']]);
+    $continueWatching = $stmt->fetchAll();
+
+    $stmt = Database::get()->prepare(
+        "SELECT * FROM favorites
+         WHERE user_id = ? AND content_type = 'anime'
+         ORDER BY added_at DESC LIMIT 20"
+    );
+    $stmt->execute([$user['id']]);
+    $myFavorites = $stmt->fetchAll();
+}
+
 $activePage = 'anime';
 ?>
 <!DOCTYPE html>
@@ -110,11 +133,13 @@ $activePage = 'anime';
 <?php endif; ?>
 
 <main class="rows-container">
-  <?php renderAnimeRow('Airing This Season',       $seasonal);    ?>
-  <?php if (!empty($topAiring)):   renderAnimeRow('Top Airing Now',        $topAiring);   endif; ?>
-  <?php renderAnimeRow('Most Popular Series',      $topTv);       ?>
-  <?php if (!empty($topFavorite)): renderAnimeRow('All-Time Fan Favorites', $topFavorite); endif; ?>
-  <?php renderAnimeRow('Popular Anime Movies',     $topMovies);   ?>
+  <?php if (!empty($continueWatching)) renderContinueWatchingRow($continueWatching); ?>
+  <?php if (!empty($myFavorites))      renderFavoritesRow('My Favorites', $myFavorites); ?>
+  <?php renderAnimeRow('Airing This Season',      $seasonal,    true); ?>
+  <?php renderAnimeRow('Top Airing Now',          $topAiring,   true); ?>
+  <?php renderAnimeRow('Most Popular Series',     $topTv,       true); ?>
+  <?php renderAnimeRow('All-Time Fan Favorites',  $topFavorite, true); ?>
+  <?php renderAnimeRow('Popular Anime Movies',    $topMovies,   true); ?>
 </main>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>

@@ -49,6 +49,29 @@ foreach (array_merge($trending, $trendingTv, $popular, $popularTv) as $item) {
 $activeGenres = array_intersect_key($tmdbGenreMap, $usedGenreIds);
 asort($activeGenres);
 
+// Continue Watching (movie + tv only on home page)
+$user = currentUser();
+$continueWatching = [];
+$myFavorites      = [];
+if ($user) {
+    require_once __DIR__ . '/../src/Database.php';
+    $stmt = Database::get()->prepare(
+        "SELECT * FROM watch_progress
+         WHERE user_id = ? AND content_type IN ('movie','tv')
+         ORDER BY updated_at DESC LIMIT 20"
+    );
+    $stmt->execute([$user['id']]);
+    $continueWatching = $stmt->fetchAll();
+
+    $stmt = Database::get()->prepare(
+        "SELECT * FROM favorites
+         WHERE user_id = ? AND content_type IN ('movie','tv')
+         ORDER BY added_at DESC LIMIT 20"
+    );
+    $stmt->execute([$user['id']]);
+    $myFavorites = $stmt->fetchAll();
+}
+
 $activePage = 'home';
 ?>
 <!DOCTYPE html>
@@ -75,7 +98,7 @@ $activePage = 'home';
   class="hero"
   style="background-image: url('<?= e(backdropUrl($hero['backdrop_path'] ?? null, 'w780')) ?>')"
   data-backdrop-lg="<?= e(backdropUrl($hero['backdrop_path'] ?? null)) ?>"
-  data-slides="<?= e(json_encode($heroSlides)) ?>"
+  data-slides="<?= json_encode($heroSlides, JSON_HEX_TAG | JSON_HEX_QUOT | JSON_HEX_AMP) ?>"
 >
   <div class="hero__content">
     <span class="hero__badge">&#9654; Now Trending</span>
@@ -107,6 +130,8 @@ $activePage = 'home';
 <?php endif; ?>
 
 <main class="rows-container">
+  <?php if (!empty($continueWatching)) renderContinueWatchingRow($continueWatching); ?>
+  <?php if (!empty($myFavorites))      renderFavoritesRow('My Favorites', $myFavorites); ?>
   <div id="movies">
     <?php renderRow('Trending Movies', $trending, 'movie'); ?>
   </div>

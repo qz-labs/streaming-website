@@ -37,6 +37,19 @@ $backdrop  = backdropUrl($movie['backdrop_path'] ?? null, 'w780');
 $poster    = imgUrl($movie['poster_path'] ?? null, 'w342');
 $watchUrl  = movieWatchUrl($id);
 
+// Favorites state
+$user        = currentUser();
+$isFavorited = false;
+if ($user) {
+    require_once __DIR__ . '/../src/Database.php';
+    $stmt = Database::get()->prepare(
+        "SELECT id FROM favorites WHERE user_id=? AND content_type='movie' AND content_id=?"
+    );
+    $stmt->execute([$user['id'], $id]);
+    $isFavorited = (bool)$stmt->fetch();
+}
+$favPoster = $movie['poster_path'] ?? '';
+
 $activePage = '';
 ?>
 <!DOCTYPE html>
@@ -86,6 +99,15 @@ $activePage = '';
       <div class="detail-buttons">
         <a class="btn btn-play" href="<?= e($watchUrl) ?>">&#9654; Play Movie</a>
         <a class="btn btn-info" href="<?= e(BASE_URL . '/') ?>" id="detail-back-btn">&#8592; Back</a>
+        <button
+          class="btn btn-fav<?= $isFavorited ? ' btn-fav--active' : '' ?>"
+          id="fav-btn"
+          data-type="movie"
+          data-id="<?= $id ?>"
+          data-title="<?= e($title) ?>"
+          data-poster="<?= e($favPoster) ?>"
+          aria-label="<?= $isFavorited ? 'Remove from favorites' : 'Add to favorites' ?>"
+        ><?= $isFavorited ? '&#9829;' : '&#9825;' ?> Favorite</button>
       </div>
     </div>
   </div>
@@ -114,5 +136,35 @@ $activePage = '';
 
 <script>const BASE_URL = '<?= BASE_URL ?>';</script>
 <script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= filemtime(__DIR__ . '/assets/js/main.js') ?>"></script>
+<script>
+(function () {
+  'use strict';
+  const btn = document.getElementById('fav-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const res  = await fetch(BASE_URL + '/api/favorites.php', {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({
+          content_type : btn.dataset.type,
+          content_id   : parseInt(btn.dataset.id, 10),
+          content_title: btn.dataset.title,
+          poster_path  : btn.dataset.poster,
+        }),
+      });
+      const data = await res.json();
+      btn.classList.toggle('btn-fav--active', data.favorited);
+      btn.innerHTML = (data.favorited ? '\u2665' : '\u2661') + ' Favorite';
+      btn.setAttribute('aria-label', data.favorited ? 'Remove from favorites' : 'Add to favorites');
+    } catch (err) {
+      console.error('Favorites error:', err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>

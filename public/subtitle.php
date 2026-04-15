@@ -81,7 +81,7 @@ if (!subtitleHostAllowed($host)) {
 }
 
 // ── Fetch VTT ─────────────────────────────────────────────────────────────────
-$caBundle = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
+$caBundle  = defined('CURL_CA_BUNDLE') ? CURL_CA_BUNDLE : 'C:/xampp/apache/bin/curl-ca-bundle.crt';
 $verifySsl = file_exists($caBundle);
 
 $ch = curl_init($url);
@@ -104,7 +104,7 @@ $body   = curl_exec($ch);
 $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $size   = curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD);
 $errno  = curl_errno($ch);
-curl_close($ch);
+unset($ch);
 
 if ($errno || !$body || $status !== 200) {
     http_response_code(502);

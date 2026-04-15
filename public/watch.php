@@ -75,8 +75,8 @@ $urlSets       = vidsrcAllUrls($type, $id, $season, $episode, $origLang);
 $subSources    = $urlSets['sub'];
 $dubSources    = $urlSets['dub'];
 
-$subSourcesJson  = json_encode($subSources);
-$dubSourcesJson  = json_encode($dubSources);
+$subSourcesJson  = json_encode($subSources, JSON_HEX_TAG | JSON_HEX_AMP);
+$dubSourcesJson  = json_encode($dubSources, JSON_HEX_TAG | JSON_HEX_AMP);
 $isEnglishJson   = $isEnglish ? 'true' : 'false';
 ?>
 <!DOCTYPE html>
@@ -383,6 +383,76 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     document.addEventListener('fullscreenchange',       updateFsIcon);
     document.addEventListener('webkitfullscreenchange', updateFsIcon);
   }
+})();
+</script>
+
+<script>
+// ── Progress tracking for cross-origin iframe ────────────────────────────────
+// We can't read the iframe's video.currentTime, so we track visible page time
+// as a proxy for how far through the content the user is.
+(function () {
+  'use strict';
+
+  const PROGRESS_META = <?= json_encode([
+    'content_type'   => $type,
+    'content_id'     => $id,
+    'content_title'  => $title,
+    'poster_path'    => $meta['poster_path'] ?? '',
+    'season'         => $type === 'tv' ? $season  : 0,
+    'episode'        => $type === 'tv' ? $episode : 0,
+    'episode_title'  => '',
+    'base_url'       => BASE_URL,
+  ]) ?>;
+
+  let visibleStart    = Date.now();
+  let accumulatedSec  = 0;
+
+  function currentTotal() {
+    return accumulatedSec + Math.round((Date.now() - visibleStart) / 1000);
+  }
+
+  function saveProgress(isFinal) {
+    const totalSec = currentTotal();
+    if (totalSec < 10) return; // Ignore accidental brief visits
+
+    const payload = JSON.stringify({
+      content_type     : PROGRESS_META.content_type,
+      content_id       : PROGRESS_META.content_id,
+      content_title    : PROGRESS_META.content_title,
+      poster_path      : PROGRESS_META.poster_path,
+      season           : PROGRESS_META.season,
+      episode          : PROGRESS_META.episode,
+      episode_title    : PROGRESS_META.episode_title,
+      progress_seconds : totalSec,
+      duration_seconds : 0,
+    });
+
+    if (isFinal) {
+      navigator.sendBeacon(PROGRESS_META.base_url + '/api/progress.php', payload);
+    } else {
+      fetch(PROGRESS_META.base_url + '/api/progress.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {});
+    }
+  }
+
+  // Accumulate time when the tab goes hidden; reset start when it returns
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      accumulatedSec += Math.round((Date.now() - visibleStart) / 1000);
+      saveProgress(false);
+    } else {
+      visibleStart = Date.now();
+    }
+  });
+
+  // Periodic save every 30 s (covers watching without tab switching)
+  setInterval(() => saveProgress(false), 30000);
+
+  // Final save when the user navigates away or closes the tab
+  window.addEventListener('pagehide', () => saveProgress(true));
 })();
 </script>
 

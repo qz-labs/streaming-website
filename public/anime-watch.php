@@ -594,7 +594,14 @@ $today         = date('Y-m-d');
 
   function showOverlay(text) { overlayText.textContent = text || 'Loading\u2026'; overlay.classList.remove('hidden'); }
   function hideOverlay()     { overlay.classList.add('hidden'); }
-  function showError(msg)    { overlay.classList.remove('hidden'); overlay.innerHTML = '<div class="error-msg">' + msg + '</div>'; }
+  function escHtml(s)        { const t = document.createElement('span'); t.textContent = String(s); return t.innerHTML; }
+  function showError(msg)    {
+    overlay.classList.remove('hidden');
+    const div = document.createElement('div');
+    div.className = 'error-msg';
+    div.innerHTML = msg;
+    overlay.replaceChildren(div);
+  }
 
   function setActiveMode(mode) {
     currentMode = mode;
@@ -695,7 +702,7 @@ $today         = date('Y-m-d');
       loadStream(data.m3u8, data.headers?.Referer || null, data.subtitles || [], seekTo);
 
     } catch (err) {
-      showError('Network error: could not reach the stream API.<br><small>' + err.message + '</small>');
+      showError('Network error: could not reach the stream API.<br><small>' + escHtml(err.message) + '</small>');
       statusEl.textContent = 'Error reaching stream API.';
     }
   }
@@ -709,6 +716,57 @@ $today         = date('Y-m-d');
   });
 
   fetchAndLoad(loadPref());
+
+  // ── Progress tracking ──────────────────────────────────────────────────────
+  const PROGRESS_META = <?= json_encode([
+    'content_type'  => 'anime',
+    'content_id'    => $malId,
+    'content_title' => $title,
+    'poster_path'   => $poster,
+    'season'        => $currentChainIdx + 1,
+    'episode'       => $episode,
+    'base_url'      => BASE_URL,
+  ]) ?>;
+
+  let progressTimer = null;
+
+  function saveProgress(isFinal) {
+    if (!isFinite(video.duration) || video.duration <= 0) return;
+    const pct = video.currentTime / video.duration;
+    // Skip saving if before 5% or past 95% (not started / already finished)
+    if (pct < 0.05 || pct > 0.95) return;
+
+    const epTitleEl = document.querySelector('.ep-panel__item--current .ep-panel__title');
+    const payload = JSON.stringify({
+      content_type     : PROGRESS_META.content_type,
+      content_id       : PROGRESS_META.content_id,
+      content_title    : PROGRESS_META.content_title,
+      poster_path      : PROGRESS_META.poster_path,
+      season           : PROGRESS_META.season,
+      episode          : PROGRESS_META.episode,
+      episode_title    : epTitleEl ? epTitleEl.textContent.trim() : '',
+      progress_seconds : Math.round(video.currentTime),
+      duration_seconds : Math.round(video.duration),
+    });
+
+    if (isFinal) {
+      navigator.sendBeacon(PROGRESS_META.base_url + '/api/progress.php', payload);
+    } else {
+      fetch(PROGRESS_META.base_url + '/api/progress.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {});
+    }
+  }
+
+  video.addEventListener('play', () => {
+    clearInterval(progressTimer);
+    progressTimer = setInterval(() => saveProgress(false), 15000);
+  });
+  video.addEventListener('pause', () => clearInterval(progressTimer));
+  video.addEventListener('ended', () => clearInterval(progressTimer));
+  window.addEventListener('pagehide', () => saveProgress(true));
 })();
 </script>
 

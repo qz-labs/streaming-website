@@ -260,13 +260,25 @@ function animeTypeBadge(string $type): string
 /**
  * Render a horizontal content row of Jikan anime items.
  * Links go to anime-detail.php.
+ * When $required is true and $items is empty, renders 8 skeleton placeholder
+ * cards so the row title is always visible (API temporarily unavailable).
  */
-function renderAnimeRow(string $title, array $items): void
+function renderAnimeRow(string $title, array $items, bool $required = false): void
 {
-    if (empty($items)) return;
+    if (empty($items) && !$required) return;
+
     echo '<section class="row">';
     echo '<h2 class="row__title">' . e($title) . '</h2>';
     echo '<div class="row__track">';
+
+    if (empty($items)) {
+        for ($i = 0; $i < 8; $i++) {
+            echo '<div class="card card--skeleton" aria-hidden="true"></div>';
+        }
+        echo '</div></section>';
+        return;
+    }
+
     foreach ($items as $item) {
         $malId  = (int)($item['mal_id'] ?? 0);
         $name   = $item['title_english'] ?: ($item['title'] ?? 'Unknown');
@@ -320,6 +332,124 @@ function renderRow(string $title, array $items, string $type): void
         echo '</div>';
         echo '</a>';
     }
+    echo '</div>';
+    echo '</section>';
+}
+
+/**
+ * Render the "Continue Watching" horizontal row.
+ * Rows come from the watch_progress table: content_type, content_id,
+ * content_title, poster_path, season, episode, progress_seconds, duration_seconds.
+ *
+ * poster_path for movie/tv is the raw TMDB path (e.g. "/abc.jpg").
+ * poster_path for anime is the full Jikan image URL.
+ */
+function renderContinueWatchingRow(array $items): void
+{
+    if (empty($items)) return;
+
+    echo '<section class="row">';
+    echo '<h2 class="row__title">Continue Watching</h2>';
+    echo '<div class="row__track">';
+
+    foreach ($items as $item) {
+        $type     = $item['content_type'];
+        $id       = (int)$item['content_id'];
+        $title    = $item['content_title'] ?: 'Unknown';
+        $poster   = $item['poster_path'] ?? '';
+        $season   = (int)$item['season'];
+        $episode  = (int)$item['episode'];
+        $progress = (int)$item['progress_seconds'];
+        $duration = (int)$item['duration_seconds'];
+
+        if ($type === 'anime') {
+            $link = animeWatchUrl($id, max(1, $episode), $season);
+        } elseif ($type === 'tv') {
+            $link = tvWatchUrl($id, max(1, $season), max(1, $episode));
+        } else {
+            $link = movieWatchUrl($id);
+        }
+
+        // Progress bar percentage (0–100); 0 when duration unknown
+        $pct = ($duration > 0) ? min(100, (int)round($progress / $duration * 100)) : 0;
+
+        $subLabel = '';
+        if ($type === 'tv'    && $season > 0 && $episode > 0) $subLabel = 'S' . $season . ' E' . $episode;
+        if ($type === 'anime' && $episode > 0)                 $subLabel = 'Ep ' . $episode;
+
+        echo '<a class="card card--progress" href="' . e($link) . '" title="' . e($title) . '">';
+
+        if ($type === 'anime' && $poster !== '') {
+            echo '<img src="' . e($poster) . '" alt="' . e($title) . '" loading="lazy" referrerpolicy="no-referrer">';
+        } else {
+            echo '<img src="' . e(imgUrl($poster !== '' ? $poster : null)) . '" alt="' . e($title) . '" loading="lazy">';
+        }
+
+        echo '<div class="card__play">&#9654;</div>';
+        echo '<div class="card__progress-bar"><div class="card__progress-fill" style="width:' . $pct . '%"></div></div>';
+        echo '<div class="card__overlay">';
+        echo '<p class="card__title">' . e($title) . '</p>';
+        if ($subLabel) echo '<p class="card__year">' . e($subLabel) . '</p>';
+        echo '</div>';
+        echo '</a>';
+    }
+
+    echo '</div>';
+    echo '</section>';
+}
+
+/**
+ * Render a "My Favorites" horizontal row.
+ * Handles all 3 content types (movie, tv, anime) since favorites
+ * from different sources are stored in the same table.
+ *
+ * poster_path for movie/tv is the raw TMDB path; for anime it is the full Jikan URL.
+ */
+function renderFavoritesRow(string $title, array $items): void
+{
+    if (empty($items)) return;
+
+    echo '<section class="row">';
+    echo '<h2 class="row__title">' . e($title) . '</h2>';
+    echo '<div class="row__track">';
+
+    foreach ($items as $item) {
+        $type   = $item['content_type'];
+        $id     = (int)$item['content_id'];
+        $name   = $item['content_title'] ?: 'Unknown';
+        $poster = $item['poster_path'] ?? '';
+
+        if ($type === 'anime') {
+            $link   = animeDetailUrl($id);
+            $imgSrc = $poster !== '' ? e($poster) : e(imgUrl(null));
+            $refpol = ' referrerpolicy="no-referrer"';
+        } elseif ($type === 'tv') {
+            $link   = BASE_URL . '/tv.php?id=' . $id;
+            $imgSrc = e(imgUrl($poster !== '' ? $poster : null));
+            $refpol = '';
+        } else {
+            $link   = BASE_URL . '/movie.php?id=' . $id;
+            $imgSrc = e(imgUrl($poster !== '' ? $poster : null));
+            $refpol = '';
+        }
+
+        $typeBadge = match($type) {
+            'tv'    => 'TV',
+            'anime' => 'Anime',
+            default => 'Movie',
+        };
+
+        echo '<a class="card card--fav" href="' . e($link) . '" title="' . e($name) . '">';
+        echo '<img src="' . $imgSrc . '" alt="' . e($name) . '" loading="lazy"' . $refpol . '>';
+        echo '<div class="card__play">&#9654;</div>';
+        echo '<span class="card__fav-heart" aria-hidden="true">&#9829;</span>';
+        echo '<span class="card__type-badge">' . $typeBadge . '</span>';
+        echo '<div class="card__overlay">';
+        echo '<p class="card__title">' . e($name) . '</p>';
+        echo '</div>';
+        echo '</a>';
+    }
+
     echo '</div>';
     echo '</section>';
 }

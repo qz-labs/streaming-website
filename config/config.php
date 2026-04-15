@@ -111,3 +111,18 @@ define('CACHE_TTL',         (int) env('CACHE_TTL', '3600'));   // seconds (1 hou
 if (!is_dir(CACHE_DIR)) {
     mkdir(CACHE_DIR, 0755, true);
 }
+
+// ── Auto-run DB migrations on every web request (IF NOT EXISTS = idempotent) ─
+// Database::get() auto-creates the database if it doesn't exist yet, so this
+// works on a fresh MySQL install with no manual setup required.
+if (php_sapi_name() !== 'cli') {
+    require_once __DIR__ . '/../src/Database.php';
+    require_once __DIR__ . '/../src/Migrations.php';
+    try {
+        Migrations::run();
+    } catch (PDOException $e) {
+        http_response_code(503);
+        exit('Database unavailable: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES) .
+             '<br>Make sure MySQL is running and the credentials in .env are correct.');
+    }
+}

@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Do NOT specify behavior — inherits scroll-behavior: smooth from <html>.
       if (e.deltaX === 0 && e.deltaY !== 0) {
         e.preventDefault();
-        window.scrollBy({ top: e.deltaY });
+        window.scrollBy({ top: e.deltaY, behavior: 'instant' });
       }
     }, { passive: false });
   });
