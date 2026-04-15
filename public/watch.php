@@ -26,9 +26,8 @@ $api  = new TmdbApi();
 $meta = ($type === 'movie') ? $api->movieDetails($id) : $api->tvDetails($id);
 
 $title     = $meta['title'] ?? $meta['name'] ?? 'Streaming';
-$origLang  = $meta['original_language'] ?? 'en';  // e.g. "ja" for anime
+$origLang  = $meta['original_language'] ?? 'en';
 
-// Human-readable label for the original language (shown on the SUB button)
 $langNames = [
     'ja' => 'JPN', 'ko' => 'KOR', 'zh' => 'CHN', 'fr' => 'FRA',
     'de' => 'DEU', 'es' => 'SPA', 'it' => 'ITA', 'pt' => 'POR',
@@ -68,11 +67,7 @@ if ($type === 'tv') {
     }
 }
 
-// ── Build embed URL sets for both modes ───────────────────────────────────────
-// Sub  = ds_lang={origLang}  → original audio + subtitles  (vidsrc.me family)
-// Dub  = ds_lang=en          → English dubbed audio         (vidsrc.me family)
-// Extra providers (vidsrc.cc, vidsrc.mov) have same URL for both modes.
-// Each entry: { url, label, ping }
+// ── Build embed URL sets ──────────────────────────────────────────────────────
 $urlSets       = vidsrcAllUrls($type, $id, $season, $episode, $origLang);
 $subSources    = $urlSets['sub'];
 $dubSources    = $urlSets['dub'];
@@ -93,177 +88,158 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
 </head>
 <body>
 
-<div class="player-page">
+<!-- ── Mini nav strip ──────────────────────────────────────────────────────── -->
+<div class="watch-nav">
+  <a class="watch-nav__logo" href="<?= BASE_URL ?>/"><?= e(SITE_NAME) ?></a>
+  <a class="watch-nav__back" href="<?= e($backUrl) ?>">&#8592; Back</a>
+</div>
 
-  <!-- Top bar -->
-  <div class="player-topbar">
-    <a class="player-back" href="<?= e($backUrl) ?>" title="Go back">&#8592;</a>
+<!-- ── Main watch layout ───────────────────────────────────────────────────── -->
+<div class="watch-layout">
 
-    <span class="player-title">
-      <?= e($title) ?>
-      <?php if ($type === 'tv'): ?>
-        &mdash; S<?= $season ?>E<?= $episode ?>
-      <?php endif; ?>
-    </span>
+  <!-- Left / main column -->
+  <div class="watch-main">
 
-    <!-- Mobile row break: controls go to second line -->
-    <div class="player-topbar-break" aria-hidden="true"></div>
-
-    <!-- Sub / Dub language toggle -->
-    <div class="lang-toggle" id="lang-toggle">
-      <button
-        class="lang-btn"
-        id="btn-sub"
-        data-mode="sub"
-        title="Original <?= e($origLangLabel) ?> audio<?= $isEnglish ? '' : ' + subtitles' ?>"
-      ><?= $isEnglish ? 'ORIG' : e($origLangLabel) ?></button>
-      <button
-        class="lang-btn active"
-        id="btn-dub"
-        data-mode="dub"
-        title="English<?= $isEnglish ? ' (original)' : ' dubbed audio' ?>"
-      >ENG</button>
+    <!-- Top bar: title + fullscreen -->
+    <div class="player-topbar">
+      <span class="player-title">
+        <?= e($title) ?>
+        <?php if ($type === 'tv'): ?>
+          &mdash; S<?= $season ?>E<?= $episode ?>
+        <?php endif; ?>
+      </span>
+      <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen video">
+        <svg id="topbar-fs-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+        </svg>
+      </button>
     </div>
 
-    <!-- Source fallback buttons — generated from subSources (labels are stable) -->
-    <div class="source-btns" id="source-btns">
-      <?php foreach ($subSources as $i => $src): ?>
+    <!-- Video iframe -->
+    <div class="player-frame-wrap" id="player-frame-wrap">
+      <div class="player-loading" id="player-loading">
+        <div class="spinner"></div>&nbsp;Loading&hellip;
+      </div>
+      <iframe
+        id="player-iframe"
+        src="about:blank"
+        frameborder="0"
+        allowfullscreen
+        referrerpolicy="origin"
+        allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+        scrolling="no"
+      ></iframe>
+    </div>
+
+    <!-- Controls bar (below video) -->
+    <div class="watch-controls-bar">
+
+      <!-- Sub / Dub toggle -->
+      <div class="lang-toggle" id="lang-toggle">
         <button
-          class="src-btn<?= $i === 0 ? ' active' : '' ?> checking"
-          data-index="<?= $i ?>"
-          title="<?= e($src['label']) ?>"
-        ><?= e($src['label']) ?></button>
-      <?php endforeach; ?>
+          class="lang-btn"
+          id="btn-sub"
+          data-mode="sub"
+          title="Original <?= e($origLangLabel) ?> audio<?= $isEnglish ? '' : ' + subtitles' ?>"
+        ><?= $isEnglish ? 'ORIG' : e($origLangLabel) ?></button>
+        <button
+          class="lang-btn active"
+          id="btn-dub"
+          data-mode="dub"
+          title="English<?= $isEnglish ? ' (original)' : ' dubbed' ?>"
+        >ENG</button>
+      </div>
+
+      <!-- Source selector -->
+      <div class="source-btns" id="source-btns">
+        <?php foreach ($subSources as $i => $src): ?>
+          <button
+            class="src-btn<?= $i === 0 ? ' active' : '' ?> checking"
+            data-index="<?= $i ?>"
+            title="<?= e($src['label']) ?>"
+          ><?= e($src['label']) ?></button>
+        <?php endforeach; ?>
+      </div>
+
+      <!-- Status + episode nav pushed to right -->
+      <div class="player-status" id="player-status">Checking sources&hellip;</div>
+
+      <?php if ($type === 'tv'): ?>
+      <nav class="ep-nav">
+        <?php if ($prevEpisode !== null): ?>
+          <a href="<?= e(tvWatchUrl($id, $season, $prevEpisode)) ?>" title="Previous episode">&#8592; Ep.<?= $prevEpisode ?></a>
+        <?php else: ?>
+          <span>&#8592; Prev</span>
+        <?php endif; ?>
+        <?php if ($nextEpisode !== null): ?>
+          <a href="<?= e(tvWatchUrl($id, $season, $nextEpisode)) ?>" title="Next episode">Ep.<?= $nextEpisode ?> &#8594;</a>
+        <?php else: ?>
+          <span>Next &#8594;</span>
+        <?php endif; ?>
+      </nav>
+      <?php endif; ?>
+
+    </div><!-- /watch-controls-bar -->
+
+  </div><!-- /watch-main -->
+
+  <?php if ($type === 'tv'): ?>
+  <!-- ── Episode sidebar ──────────────────────────────────────────────────── -->
+  <div class="ep-sidebar" id="ep-sidebar">
+    <div class="ep-panel__head">
+      <span class="ep-panel__head-title">Episodes</span>
+
+      <?php if (!empty($tvSeasons)): ?>
+      <select class="ep-panel__season-sel" id="ep-panel-season">
+        <?php foreach ($tvSeasons as $s): ?>
+          <option
+            value="<?= e(BASE_URL . '/watch.php?type=tv&id=' . $id . '&s=' . (int)$s['season_number'] . '&e=1') ?>"
+            <?= (int)$s['season_number'] === $season ? 'selected' : '' ?>
+          >S<?= (int)$s['season_number'] ?><?= !empty($s['episode_count']) ? ' (' . (int)$s['episode_count'] . ' eps)' : '' ?></option>
+        <?php endforeach; ?>
+      </select>
+      <?php endif; ?>
+
+      <!-- Mobile collapse toggle -->
+      <button class="ep-sidebar-toggle" id="ep-sidebar-toggle" title="Toggle episode list">&#9660;</button>
     </div>
 
-    <?php if ($type === 'tv'): ?>
-    <!-- Episode navigation -->
-    <nav class="ep-nav">
-      <?php if ($prevEpisode !== null): ?>
-        <a href="<?= e(tvWatchUrl($id, $season, $prevEpisode)) ?>" title="Previous episode">&#8592; Ep.<?= $prevEpisode ?></a>
+    <div class="ep-panel__list" id="ep-panel-list">
+      <?php if (!empty($tvEpisodes)): ?>
+        <?php foreach ($tvEpisodes as $ep): ?>
+          <?php
+            $epN     = (int)($ep['episode_number'] ?? 0);
+            $epT     = $ep['name'] ?? 'Episode ' . $epN;
+            $epUrl   = tvWatchUrl($id, $season, $epN);
+            $isCurr  = $epN === $episode;
+            $epThumb = !empty($ep['still_path']) ? stillUrl($ep['still_path']) : null;
+          ?>
+          <a href="<?= e($epUrl) ?>" class="ep-panel__item<?= $isCurr ? ' ep-panel__item--current' : '' ?>">
+            <div class="ep-panel__thumb<?= $epThumb ? '' : ' ep-panel__thumb--blank' ?>">
+              <?php if ($epThumb): ?>
+                <img src="<?= e($epThumb) ?>" alt="" loading="lazy">
+              <?php endif; ?>
+              <?php if ($isCurr): ?><div class="ep-panel__now">&#9654;</div><?php endif; ?>
+            </div>
+            <div class="ep-panel__info">
+              <span class="ep-panel__num">Ep <?= $epN ?></span>
+              <span class="ep-panel__title"><?= e(truncate($epT, 40)) ?></span>
+            </div>
+          </a>
+        <?php endforeach; ?>
       <?php else: ?>
-        <span>&#8592; Prev</span>
+        <p class="ep-panel__empty">No episode data available.</p>
       <?php endif; ?>
-      <?php if ($nextEpisode !== null): ?>
-        <a href="<?= e(tvWatchUrl($id, $season, $nextEpisode)) ?>" title="Next episode">Ep.<?= $nextEpisode ?> &#8594;</a>
-      <?php else: ?>
-        <span>Next &#8594;</span>
-      <?php endif; ?>
-    </nav>
-    <button class="ep-toggle-btn" id="ep-panel-toggle" title="Episode list">&#9776; Episodes</button>
-    <?php endif; ?>
-    <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">
-      <svg id="topbar-fs-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-    </button>
-  </div>
-
-  <!-- Status line -->
-  <div class="player-status" id="player-status">Checking sources&hellip;</div>
-
-  <!-- Player -->
-  <div class="player-frame-wrap">
-    <div class="player-loading" id="player-loading">
-      <div class="spinner"></div> Loading&hellip;
     </div>
-    <iframe
-      id="player-iframe"
-      src="about:blank"
-      frameborder="0"
-      allowfullscreen
-      referrerpolicy="origin"
-      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-      scrolling="no"
-    ></iframe>
   </div>
+  <?php endif; ?>
 
-</div>
-
-<?php if ($type === 'tv'): ?>
-<!-- ── TV Episode panel ──────────────────────────────────────────────────────── -->
-<div class="ep-panel" id="ep-panel">
-  <div class="ep-panel__head">
-    <span class="ep-panel__head-title">Episodes</span>
-    <?php if (!empty($tvSeasons)): ?>
-    <select class="ep-panel__season-sel" id="ep-panel-season">
-      <?php foreach ($tvSeasons as $s): ?>
-        <option
-          value="<?= e(BASE_URL . '/watch.php?type=tv&id=' . $id . '&s=' . (int)$s['season_number'] . '&e=1') ?>"
-          <?= (int)$s['season_number'] === $season ? 'selected' : '' ?>
-        >S<?= (int)$s['season_number'] ?><?= !empty($s['episode_count']) ? ' (' . (int)$s['episode_count'] . ' eps)' : '' ?></option>
-      <?php endforeach; ?>
-    </select>
-    <?php endif; ?>
-    <button class="ep-panel__close" id="ep-panel-close" title="Close">&#10005;</button>
-  </div>
-  <div class="ep-panel__list" id="ep-panel-list">
-    <?php if (!empty($tvEpisodes)): ?>
-      <?php foreach ($tvEpisodes as $ep): ?>
-        <?php
-          $epN     = (int)($ep['episode_number'] ?? 0);
-          $epT     = $ep['name'] ?? 'Episode ' . $epN;
-          $epUrl   = tvWatchUrl($id, $season, $epN);
-          $isCurr  = $epN === $episode;
-          $epThumb = !empty($ep['still_path']) ? stillUrl($ep['still_path']) : null;
-        ?>
-        <a href="<?= e($epUrl) ?>" class="ep-panel__item<?= $isCurr ? ' ep-panel__item--current' : '' ?>">
-          <div class="ep-panel__thumb<?= $epThumb ? '' : ' ep-panel__thumb--blank' ?>">
-            <?php if ($epThumb): ?>
-              <img src="<?= e($epThumb) ?>" alt="" loading="lazy">
-            <?php endif; ?>
-            <?php if ($isCurr): ?><div class="ep-panel__now">&#9654;</div><?php endif; ?>
-          </div>
-          <div class="ep-panel__info">
-            <span class="ep-panel__num">Ep <?= $epN ?></span>
-            <span class="ep-panel__title"><?= e(truncate($epT, 40)) ?></span>
-          </div>
-        </a>
-      <?php endforeach; ?>
-    <?php else: ?>
-      <p class="ep-panel__empty">No episode data available.</p>
-    <?php endif; ?>
-  </div>
-</div>
-
-<script>
-(function () {
-  'use strict';
-  const panel     = document.getElementById('ep-panel');
-  const toggleBtn = document.getElementById('ep-panel-toggle');
-  const closeBtn  = document.getElementById('ep-panel-close');
-  const seasonSel = document.getElementById('ep-panel-season');
-  const frameWrap = document.querySelector('.player-frame-wrap');
-  if (!panel || !toggleBtn) return;
-
-  function openPanel()  {
-    panel.classList.add('open');
-    toggleBtn.classList.add('active');
-    if (frameWrap) frameWrap.classList.add('panel-open');
-    const cur = document.querySelector('.ep-panel__item--current');
-    if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
-  }
-  function closePanel() {
-    panel.classList.remove('open');
-    toggleBtn.classList.remove('active');
-    if (frameWrap) frameWrap.classList.remove('panel-open');
-  }
-
-  toggleBtn.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
-  if (closeBtn) closeBtn.addEventListener('click', closePanel);
-
-  if (seasonSel) {
-    seasonSel.addEventListener('change', () => { if (seasonSel.value) window.location.href = seasonSel.value; });
-  }
-})();
-</script>
-<?php endif; ?>
+</div><!-- /watch-layout -->
 
 <script>
 (function () {
   'use strict';
 
-  // Each source is { url, label, ping }
-  // vidsrc.me family (S1-S7): different sub/dub URLs via ds_lang
-  // Extra providers (S8+):   same URL for both modes (no lang param support)
   const SUB_SOURCES = <?= $subSourcesJson ?>;
   const DUB_SOURCES = <?= $dubSourcesJson ?>;
   const IS_ENGLISH  = <?= $isEnglishJson ?>;
@@ -280,7 +256,6 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
   function sourcesForMode(mode) { return mode === 'sub' ? SUB_SOURCES : DUB_SOURCES; }
   function domainOf(url) { try { return new URL(url).hostname; } catch { return url; } }
 
-  // ── Load a specific source ─────────────────────────────────────────────────
   function loadSource(idx, mode) {
     mode        = mode || currentMode;
     currentIdx  = idx;
@@ -293,9 +268,6 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     langBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 
     loading.classList.remove('hidden');
-    // Use about:blank + small delay instead of '' so browsers don't
-    // navigate to the current page URL, which would break the autoplay
-    // user-interaction context.
     iframe.src = 'about:blank';
     setTimeout(() => { iframe.src = src.url; }, 50);
 
@@ -308,7 +280,6 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     };
   }
 
-  // ── Ping a source URL (no-cors HEAD, 4s timeout) ──────────────────────────
   function ping(pingUrl) {
     return new Promise((resolve) => {
       const ctrl  = new AbortController();
@@ -319,37 +290,31 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     });
   }
 
-  // ── Auto-detect first reachable source ────────────────────────────────────
   async function autoDetect() {
     const defaultMode = IS_ENGLISH ? 'dub' : 'sub';
     currentMode = defaultMode;
     langBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === defaultMode));
 
     const sources = sourcesForMode(defaultMode);
-
     for (let i = 0; i < sources.length; i++) {
       status.textContent = 'Checking ' + sources[i].label + ' of ' + sources.length + '…';
       const ok = await ping(sources[i].ping);
       srcBtns[i].classList.remove('checking');
-
       if (ok) {
         for (let j = i + 1; j < srcBtns.length; j++) srcBtns[j].classList.remove('checking');
         loadSource(i, defaultMode);
         return;
       }
     }
-
     status.textContent = 'No source responded — trying S1 anyway…';
     srcBtns.forEach(b => b.classList.remove('checking'));
     loadSource(0, defaultMode);
   }
 
-  // ── Source button clicks ───────────────────────────────────────────────────
   srcBtns.forEach(btn => {
     btn.addEventListener('click', () => loadSource(parseInt(btn.dataset.index, 10), currentMode));
   });
 
-  // ── Sub / Dub toggle ──────────────────────────────────────────────────────
   langBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
@@ -359,55 +324,41 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
 
   autoDetect();
 
-  // ── Mobile: Netflix-style overlay UI ─────────────────────────────────────
-  // Covers portrait phones AND landscape phones (short + touch screen)
-  const isMobile = window.matchMedia('(max-width: 640px)').matches ||
-                   window.matchMedia('(max-height: 500px) and (pointer: coarse)').matches;
-  const playerPage = document.querySelector('.player-page');
-
-  if (isMobile && playerPage) {
-    let uiTimer = null;
-
-    function showUI() {
-      playerPage.classList.remove('ui-hidden');
-      clearTimeout(uiTimer);
-      // Auto-hide after 3.5 s of no interaction
-      uiTimer = setTimeout(() => playerPage.classList.add('ui-hidden'), 3500);
-    }
-
-    // Any touch resets the auto-hide timer and shows controls
-    document.addEventListener('touchstart', showUI, { passive: true });
-
-    // Start hidden; reveal briefly so the user sees controls exist
-    playerPage.classList.add('ui-hidden');
-    showUI();
+  // ── Season selector ────────────────────────────────────────────────────────
+  const seasonSel = document.getElementById('ep-panel-season');
+  if (seasonSel) {
+    seasonSel.addEventListener('change', () => { if (seasonSel.value) window.location.href = seasonSel.value; });
   }
 
-  // ── Topbar fullscreen button ──────────────────────────────────────────────
-  // iOS Safari: document.requestFullscreen is not supported; only
-  // video.webkitEnterFullscreen works, but we have an iframe here.
-  // We detect iOS via the absence of the standard API.
-  const isIOS = !document.fullscreenEnabled &&
-                typeof document.createElement('video').webkitEnterFullscreen === 'function';
+  // ── Mobile episode sidebar collapse toggle ─────────────────────────────────
+  const sidebar    = document.getElementById('ep-sidebar');
+  const toggleBtn  = document.getElementById('ep-sidebar-toggle');
+  if (sidebar && toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const collapsed = sidebar.classList.toggle('collapsed');
+      toggleBtn.innerHTML = collapsed ? '&#9650;' : '&#9660;';
+    });
+    // Scroll to current episode
+    const cur = document.querySelector('.ep-panel__item--current');
+    if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100);
+  }
 
-  const topbarFsBtn     = document.getElementById('topbar-fs-btn');
-  const playerFrameWrap = document.querySelector('.player-frame-wrap');
+  // ── Fullscreen button ──────────────────────────────────────────────────────
+  const frameWrap   = document.getElementById('player-frame-wrap');
+  const topbarFsBtn = document.getElementById('topbar-fs-btn');
 
-  if (topbarFsBtn && playerFrameWrap) {
+  if (topbarFsBtn && frameWrap) {
+    const isIOS = !document.fullscreenEnabled &&
+                  typeof document.createElement('video').webkitEnterFullscreen === 'function';
+
     topbarFsBtn.addEventListener('click', () => {
       if (isIOS) {
-        // iOS: try webkit fullscreen on the iframe itself; may be blocked
-        // by cross-origin policy — provider's own fullscreen is the fallback.
         const iframeEl = document.getElementById('player-iframe');
-        if (iframeEl && iframeEl.webkitRequestFullscreen) {
-          iframeEl.webkitRequestFullscreen();
-        }
+        if (iframeEl && iframeEl.webkitRequestFullscreen) iframeEl.webkitRequestFullscreen();
         return;
       }
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        // Mobile: fullscreen the whole page so our topbar overlay is included
-        const el = isMobile ? document.documentElement : playerFrameWrap;
-        (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});
+        (frameWrap.requestFullscreen || frameWrap.webkitRequestFullscreen).call(frameWrap).catch(() => {});
       } else {
         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
       }
@@ -416,14 +367,14 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     const FS_ENTER_PATH = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
     const FS_EXIT_PATH  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
 
-    function updateTopbarFsIcon() {
+    function updateFsIcon() {
       const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
       const icon = topbarFsBtn.querySelector('svg');
       if (icon) icon.innerHTML = '<path d="' + (inFs ? FS_EXIT_PATH : FS_ENTER_PATH) + '"/>';
-      topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
+      topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen video';
     }
-    document.addEventListener('fullscreenchange',       updateTopbarFsIcon);
-    document.addEventListener('webkitfullscreenchange', updateTopbarFsIcon);
+    document.addEventListener('fullscreenchange',       updateFsIcon);
+    document.addEventListener('webkitfullscreenchange', updateFsIcon);
   }
 })();
 </script>

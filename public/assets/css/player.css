@@ -1,42 +1,47 @@
-/* ── Player page shell ───────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLAYER PAGE — actvid-style layout
+   Desktop : video + episode sidebar side-by-side
+   Mobile  : stacked (video → controls → episode list)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page base ────────────────────────────────────────────────────────────── */
 html, body {
   margin: 0;
   padding: 0;
-  background: #000;
-  height: 100%;
-  /* Use -webkit-fill-available so iOS Safari fills the visible area,
-     not the theoretical full viewport (which includes hidden browser chrome) */
-  height: -webkit-fill-available;
-  overflow: hidden;
-  overscroll-behavior: none;
+  background: #0d0d0d;
+  color: #e5e5e5;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  overflow-x: hidden;
 }
 
-.player-page {
+/* ── Outer layout wrapper ─────────────────────────────────────────────────── */
+.watch-layout {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+  background: #0d0d0d;
+}
+
+/* ── Main column (topbar + video + controls) ──────────────────────────────── */
+.watch-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;           /* Dynamic viewport — shrinks with browser bar */
-  background: #000;
-  overflow: hidden;
 }
 
-/* iOS Safari < 15.4: 100dvh not supported; -webkit-fill-available fills
-   the visible area instead of the theoretical 100vh                       */
-@supports (-webkit-touch-callout: none) and (not (height: 100dvh)) {
-  .player-page { height: -webkit-fill-available; }
-}
-
-/* ── Top bar ─────────────────────────────────────────────────────────────────── */
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
 .player-topbar {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0 1rem;
-  height: 48px;
+  height: 52px;
+  min-height: 52px;
   flex-shrink: 0;
-  background: rgba(0,0,0,0.95);
+  background: #080808;
+  border-bottom: 1px solid #1e1e1e;
   z-index: 30;
-  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .player-back {
@@ -46,12 +51,14 @@ html, body {
   text-decoration: none;
   flex-shrink: 0;
   transition: opacity .15s;
+  padding: 6px 4px;
 }
 .player-back:hover { opacity: 1; }
 
 .player-title {
   flex: 1;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: #b3b3b3;
   white-space: nowrap;
   overflow: hidden;
@@ -59,103 +66,33 @@ html, body {
   min-width: 0;
 }
 
-/* ── Sub / Dub language toggle ───────────────────────────────────────────────── */
-.lang-toggle {
-  display: flex;
-  gap: 0;
-  flex-shrink: 0;
-  border: 1px solid #444;
+/* ── Topbar fullscreen button ─────────────────────────────────────────────── */
+.topbar-fs-btn {
+  background: none;
+  border: 1px solid #333;
   border-radius: 4px;
-  overflow: hidden;
-}
-
-.lang-btn {
-  background: #1a1a1a;
   color: #888;
-  border: none;
-  padding: 4px 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: .5px;
   cursor: pointer;
-  transition: background .15s, color .15s;
-  font-family: inherit;
-}
-.lang-btn + .lang-btn  { border-left: 1px solid #444; }
-.lang-btn:hover        { background: #2a2a2a; color: #ccc; }
-.lang-btn.active       { background: #E50914; color: #fff; }
-.lang-btn:disabled     { opacity: .35; cursor: default; }
-
-/* ── Episode nav (anime-watch + watch TV) ────────────────────────────────────── */
-.ep-nav { display: flex; gap: 4px; flex-shrink: 0; }
-
-.ep-nav a, .ep-nav span {
-  display: inline-block;
-  padding: 4px 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  border-radius: 3px;
-  text-decoration: none;
-  color: #888;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  transition: background .15s, color .15s;
-  white-space: nowrap;
-}
-.ep-nav a:hover { background: #2a2a2a; color: #ccc; }
-.ep-nav span    { opacity: .3; cursor: default; }
-
-/* ── Source buttons (watch.php only) ────────────────────────────────────────── */
-.source-btns { display: flex; gap: 3px; flex-shrink: 0; }
-
-.src-btn {
-  background: #1a1a1a;
-  color: #666;
-  border: 1px solid #333;
-  border-radius: 3px;
-  padding: 3px 8px;
-  font-size: 0.7rem;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background .15s, color .15s;
-}
-.src-btn:hover    { background: #2a2a2a; color: #ccc; }
-.src-btn.active   { background: #E50914; border-color: #E50914; color: #fff; }
-.src-btn.checking { opacity: .35; cursor: default; }
-
-/* ── Status bar ──────────────────────────────────────────────────────────────── */
-.player-status {
-  text-align: center;
-  font-size: 0.7rem;
-  color: #444;
-  padding: 3px 0;
+  padding: 6px 8px;
   flex-shrink: 0;
-  background: #000;
-  min-height: 18px;
-  transition: opacity 0.25s ease;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s;
+  line-height: 1;
 }
+.topbar-fs-btn svg { display: block; }
+.topbar-fs-btn:hover { background: #1e1e1e; color: #ddd; border-color: #555; }
 
-/* ── Video / iframe area ─────────────────────────────────────────────────────── */
+/* ── Video frame (16:9) ───────────────────────────────────────────────────── */
 .player-frame-wrap {
-  flex: 1;
   position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   background: #000;
   overflow: hidden;
-  overscroll-behavior: none;  /* prevent pull-to-refresh swallowing touches */
-  cursor: none;
-  min-height: 0;
-  /* Ensure the frame fills available space on older Android WebView */
-  -webkit-overflow-scrolling: touch;
-}
-.player-frame-wrap.controls-visible { cursor: default; }
-
-/* Native <video> element */
-#anime-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background: #000;
+  cursor: default;
 }
 
 /* Embedded <iframe> (watch.php) */
@@ -167,7 +104,16 @@ html, body {
   border: none;
 }
 
-/* ── Loading overlay ─────────────────────────────────────────────────────────── */
+/* Native <video> (anime-watch.php) */
+#anime-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+/* ── Loading overlay ──────────────────────────────────────────────────────── */
 .player-loading {
   position: absolute;
   inset: 0;
@@ -183,7 +129,7 @@ html, body {
 }
 .player-loading.hidden { opacity: 0; }
 
-/* ── Loading / error overlay (anime-watch) ───────────────────────────────────── */
+/* ── Loading / error overlay (anime-watch) ────────────────────────────────── */
 .player-overlay {
   position: absolute;
   inset: 0;
@@ -191,7 +137,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0,0,0,0.9);
   color: #555;
   font-size: 0.85rem;
   z-index: 10;
@@ -232,15 +178,284 @@ html, body {
   color: #ccc;
 }
 
-/* ── Custom video controls ───────────────────────────────────────────────────── */
+/* ── Controls bar (below video) ───────────────────────────────────────────── */
+.watch-controls-bar {
+  background: #0a0a0a;
+  border-top: 1px solid #1e1e1e;
+  border-bottom: 1px solid #1e1e1e;
+  padding: 0.6rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Status line ──────────────────────────────────────────────────────────── */
+.player-status {
+  font-size: 0.68rem;
+  color: #444;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Sub / Dub language toggle ────────────────────────────────────────────── */
+.lang-toggle {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  border: 1px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lang-btn {
+  background: #111;
+  color: #666;
+  border: none;
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  font-family: inherit;
+}
+.lang-btn + .lang-btn { border-left: 1px solid #333; }
+.lang-btn:hover       { background: #1e1e1e; color: #ccc; }
+.lang-btn.active      { background: #E50914; color: #fff; }
+.lang-btn:disabled    { opacity: .35; cursor: default; }
+
+/* ── Source buttons ───────────────────────────────────────────────────────── */
+.source-btns {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+.src-btn {
+  background: #111;
+  color: #555;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  padding: 4px 9px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.src-btn:hover    { background: #1e1e1e; color: #ccc; }
+.src-btn.active   { background: #E50914; border-color: #E50914; color: #fff; }
+.src-btn.checking { opacity: .4; cursor: default; }
+
+/* ── Episode nav ──────────────────────────────────────────────────────────── */
+.ep-nav { display: flex; gap: 4px; flex-shrink: 0; margin-left: auto; }
+
+.ep-nav a, .ep-nav span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 3px;
+  text-decoration: none;
+  color: #777;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.ep-nav a:hover { background: #1e1e1e; color: #ccc; }
+.ep-nav span    { opacity: .3; cursor: default; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EPISODE SIDEBAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ep-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #080808;
+  border-left: 1px solid #1e1e1e;
+  /* Stick to viewport while the main column scrolls */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Episode panel head (season selector + close) ─────────────────────────── */
+.ep-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #050505;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+
+.ep-panel__head-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #bbb;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ep-panel__season-sel {
+  flex: 1;
+  min-width: 0;
+  background: #111;
+  color: #ccc;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ep-panel__season-sel:focus { outline: 1px solid #444; }
+
+/* Mobile-only collapse toggle */
+.ep-sidebar-toggle {
+  display: none;         /* hidden on desktop */
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 4px 6px;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: color .15s;
+  white-space: nowrap;
+}
+.ep-sidebar-toggle:hover { color: #ccc; }
+
+/* ── Episode list ─────────────────────────────────────────────────────────── */
+.ep-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #222 transparent;
+}
+.ep-panel__list::-webkit-scrollbar       { width: 4px; }
+.ep-panel__list::-webkit-scrollbar-track { background: transparent; }
+.ep-panel__list::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+/* ── Episode items ────────────────────────────────────────────────────────── */
+.ep-panel__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: #888;
+  border-bottom: 1px solid #111;
+  transition: background .12s, color .12s;
+}
+.ep-panel__item:hover              { background: #111; color: #fff; }
+.ep-panel__item--current           { background: #1a0d14; color: #fff; border-left: 3px solid #E50914; padding-left: 9px; }
+.ep-panel__item--upcoming          { opacity: 0.4; cursor: default; }
+
+.ep-panel__thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 88px;
+  height: 50px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #111;
+}
+.ep-panel__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ep-panel__thumb--blank { background: #111; }
+
+.ep-panel__now,
+.ep-panel__soon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+.ep-panel__now  { background: rgba(229,9,20,0.55); color: #fff; }
+.ep-panel__soon { background: rgba(0,0,0,0.5); color: #aaa; }
+
+.ep-panel__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ep-panel__num {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #444;
+  text-transform: uppercase;
+}
+.ep-panel__item--current .ep-panel__num { color: #E50914; }
+
+.ep-panel__title {
+  font-size: 0.77rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: inherit;
+}
+
+.ep-panel__empty {
+  padding: 2rem 1rem;
+  color: #333;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIME PLAYER — custom video controls
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Center play/pause ripple */
+.center-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 64px; height: 64px;
+  background: rgba(229,9,20,0.75);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 14;
+  pointer-events: none;
+  transition: transform .12s ease, opacity .25s ease;
+  opacity: 0;
+}
+.center-play.flash { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.center-play svg   { width: 28px; height: 28px; fill: #fff; }
+
+/* Custom controls overlay (shown on hover/tap) */
 .custom-controls {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   z-index: 15;
-  background: linear-gradient(transparent, rgba(0,0,0,0.85));
-  padding: 40px 14px 10px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.88));
+  padding: 40px 14px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -254,37 +469,13 @@ html, body {
   pointer-events: all;
 }
 
-/* Center play/pause ripple */
-.center-play {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  width: 64px;
-  height: 64px;
-  background: rgba(229,9,20,0.75);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 14;
-  pointer-events: none;
-  transition: transform .12s ease, opacity .25s ease;
-  opacity: 0;
-}
-.center-play.flash {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-}
-.center-play svg { width: 28px; height: 28px; fill: #fff; }
-
-/* ── Progress bar ────────────────────────────────────────────────────────────── */
+/* Progress bar */
 .progress-row { display: flex; align-items: center; gap: 8px; }
 
 .progress-wrap {
   flex: 1;
   height: 4px;
-  background: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.18);
   border-radius: 2px;
   cursor: pointer;
   position: relative;
@@ -295,7 +486,7 @@ html, body {
 .progress-buf {
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  background: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.22);
   border-radius: 2px;
   pointer-events: none;
 }
@@ -327,7 +518,7 @@ html, body {
   text-align: right;
 }
 
-/* ── Control buttons row ─────────────────────────────────────────────────────── */
+/* Control buttons row */
 .controls-row { display: flex; align-items: center; gap: 6px; }
 
 .ctrl-btn {
@@ -349,7 +540,7 @@ html, body {
 
 .ctrl-spacer { flex: 1; }
 
-/* ── Volume group ────────────────────────────────────────────────────────────── */
+/* Volume group */
 .volume-group { display: flex; align-items: center; gap: 4px; }
 
 .volume-slider-wrap {
@@ -363,8 +554,7 @@ html, body {
 .volume-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 72px;
-  height: 4px;
+  width: 72px; height: 4px;
   background: rgba(255,255,255,0.25);
   border-radius: 2px;
   outline: none;
@@ -379,15 +569,15 @@ html, body {
   cursor: pointer;
 }
 
-/* ── Subtitle dropdown ───────────────────────────────────────────────────────── */
+/* Subtitle dropdown */
 .sub-group { position: relative; }
 
 .sub-dropdown {
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: #111;
+  border: 1px solid #2a2a2a;
   border-radius: 6px;
   min-width: 150px;
   max-height: 200px;
@@ -409,481 +599,10 @@ html, body {
   font-family: inherit;
   transition: background .1s, color .1s;
 }
-.sub-dropdown button:hover  { background: #2a2a2a; color: #fff; }
+.sub-dropdown button:hover  { background: #1e1e1e; color: #fff; }
 .sub-dropdown button.active { color: #E50914; font-weight: 700; }
 
-/* ── Episode panel ───────────────────────────────────────────────────────────── */
-.ep-panel {
-  position: fixed;
-  top: 0;
-  right: -320px;
-  width: 300px;
-  max-width: 90vw;
-  height: 100vh;
-  height: 100dvh;
-  background: #0d0d0d;
-  border-left: 1px solid #222;
-  z-index: 25;
-  display: flex;
-  flex-direction: column;
-  transition: right 0.28s ease;
-  overflow: hidden;
-}
-.ep-panel.open { right: 0; }
-
-.ep-panel__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #080808;
-  border-bottom: 1px solid #1e1e1e;
-  flex-shrink: 0;
-}
-
-.ep-panel__head-title {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #ccc;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.ep-panel__season-label {
-  font-size: 0.75rem;
-  color: #666;
-  flex-shrink: 0;
-}
-
-.ep-panel__season-sel {
-  flex: 1;
-  min-width: 0;
-  background: #1a1a1a;
-  color: #ccc;
-  border: 1px solid #333;
-  border-radius: 3px;
-  padding: 5px 8px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  font-family: inherit;
-}
-.ep-panel__season-sel:focus { outline: 1px solid #555; }
-
-.ep-panel__close {
-  background: none;
-  border: none;
-  color: #555;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 4px 6px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition: color 0.15s;
-  font-family: inherit;
-  border-radius: 3px;
-}
-.ep-panel__close:hover { color: #ccc; background: #1a1a1a; }
-
-.ep-panel__list {
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: #2a2a2a transparent;
-}
-.ep-panel__list::-webkit-scrollbar       { width: 4px; }
-.ep-panel__list::-webkit-scrollbar-track { background: transparent; }
-.ep-panel__list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
-
-.ep-panel__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  text-decoration: none;
-  color: #999;
-  border-bottom: 1px solid #141414;
-  transition: background 0.12s, color 0.12s;
-}
-.ep-panel__item:hover              { background: #1a1a1a; color: #fff; }
-.ep-panel__item--current           { background: #1c0f17; color: #fff; border-left: 3px solid #E50914; padding-left: 9px; }
-.ep-panel__item--upcoming          { opacity: 0.4; cursor: default; }
-
-.ep-panel__thumb {
-  position: relative;
-  flex-shrink: 0;
-  width: 96px;
-  height: 54px;
-  border-radius: 3px;
-  overflow: hidden;
-  background: #1a1a1a;
-}
-.ep-panel__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-.ep-panel__thumb--blank { background: #1a1a1a; }
-
-.ep-panel__now,
-.ep-panel__soon {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-}
-.ep-panel__now { background: rgba(229,9,20,0.55); color: #fff; }
-.ep-panel__soon { background: rgba(0,0,0,0.5); color: #aaa; }
-
-.ep-panel__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.ep-panel__num {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  color: #555;
-  text-transform: uppercase;
-}
-.ep-panel__item--current .ep-panel__num { color: #E50914; }
-
-.ep-panel__title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.ep-panel__empty {
-  padding: 2rem 1rem;
-  color: #444;
-  font-size: 0.82rem;
-  text-align: center;
-}
-
-/* Episode panel toggle button (in topbar) */
-.ep-toggle-btn {
-  background: #1a1a1a;
-  color: #888;
-  border: 1px solid #333;
-  border-radius: 3px;
-  padding: 5px 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.ep-toggle-btn:hover  { background: #2a2a2a; color: #ccc; }
-.ep-toggle-btn.active { background: #E50914; border-color: #E50914; color: #fff; }
-
-/* Dim the player when the panel is open */
-.player-frame-wrap.panel-open::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 12;
-  pointer-events: none;
-}
-
-/* ── Topbar fullscreen button ────────────────────────────────────────────────── */
-.topbar-fs-btn {
-  background: none;
-  border: 1px solid #333;
-  border-radius: 3px;
-  color: #888;
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 5px 8px;
-  flex-shrink: 0;
-  font-family: inherit;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background .15s, color .15s;
-}
-.topbar-fs-btn svg { display: block; }
-.topbar-fs-btn:hover { background: #2a2a2a; color: #ccc; }
-
-/* ── Touch interaction optimization (eliminates 300ms tap delay) ─────────────── */
-.ctrl-btn,
-.lang-btn,
-.src-btn,
-.ep-toggle-btn,
-.topbar-fs-btn,
-.ep-panel__close,
-.ep-panel__item,
-.progress-wrap,
-.player-back,
-.volume-slider {
-  touch-action: manipulation;
-}
-
-/* ── Mobile row-break helper (invisible on desktop) ─────────────────────────── */
-.player-topbar-break {
-  display: none;
-  flex: 0 0 100%;
-  height: 0;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   MOBILE  — portrait phones (≤ 640 px wide) OR landscape phones (≤ 500 px tall
-   on a touch device).  The second clause catches phones rotated sideways where
-   width > 640 px but the screen is still phone-sized.
-   ══════════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
-
-  /* --- Page shell ------------------------------------------------------------ */
-  html, body {
-    height: 100%;
-  }
-
-  /* Switch to overlay layout on mobile:
-     video fills 100% of the screen, topbar floats on top.
-     Use position:fixed so the player is pinned to the visible viewport —
-     avoids the collapse that happens when all children are absolutely positioned
-     inside a position:relative block with only min-height. */
-  .player-page {
-    position: fixed;
-    inset: 0;
-    display: block;
-  }
-
-  /* Frame fills the fixed player-page */
-  .player-frame-wrap {
-    position: absolute;
-    inset: 0;
-    flex: none;
-    min-height: 0;
-  }
-
-  /* Topbar: floats over the video + two-row layout */
-  .player-topbar {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    z-index: 30;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0) 100%);
-    flex-wrap: wrap;
-    height: auto;
-    /* Push content below the notch/Dynamic Island on iPhones;
-       env() requires viewport-fit=cover in the <meta viewport> tag */
-    padding-top:    max(8px, env(safe-area-inset-top, 8px));
-    padding-bottom: 20px;   /* fades into gradient */
-    padding-left:   max(10px, env(safe-area-inset-left, 10px));
-    padding-right:  max(10px, env(safe-area-inset-right, 10px));
-    row-gap: 4px;
-    column-gap: 6px;
-  }
-
-  /* Status bar hidden on mobile */
-  .player-status {
-    display: none;
-  }
-
-  /* UI hidden: topbar slides up and fades out */
-  .player-page.ui-hidden .player-topbar {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-100%);
-  }
-
-  /* Bottom controls (anime player) also hide when UI is hidden */
-  .player-page.ui-hidden .custom-controls {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  /* Row 1: ← Back  |  Show Title  (break forces next items to row 2) */
-  .player-topbar-break { display: block; }
-
-  .player-back {
-    font-size: 1.2rem;
-    padding: 6px 8px 6px 0;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-  }
-
-  .player-title {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.78rem;
-    line-height: 1.3;
-    /* Allow two lines on very long titles before truncating */
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  /* Row 2: lang-toggle  [auto-space]  ep-nav  ep-toggle-btn */
-  .lang-toggle { flex-shrink: 0; }
-
-  .lang-btn {
-    padding: 7px 11px;
-    font-size: 0.72rem;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-  }
-
-  .ep-nav {
-    margin-left: auto;   /* push to right edge */
-    gap: 4px;
-  }
-
-  .ep-nav a, .ep-nav span {
-    padding: 7px 12px;
-    font-size: 0.72rem;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .ep-toggle-btn {
-    padding: 7px 9px;
-    font-size: 0.68rem;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-  }
-
-  /* Row 3 (source buttons only): full-width horizontal scroll */
-  .source-btns {
-    order: 10;
-    flex: 0 0 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-    gap: 5px;
-    padding: 1px 0 3px;
-  }
-  .source-btns::-webkit-scrollbar { display: none; }
-
-  .src-btn {
-    padding: 8px 14px;
-    font-size: 0.78rem;
-    min-height: 44px;
-    white-space: nowrap;
-  }
-
-  .topbar-fs-btn {
-    padding: 7px 10px;
-    min-height: 44px;
-    min-width: 44px;
-    /* More prominent on mobile */
-    border-color: #666;
-    color: #ddd;
-  }
-
-  /* --- Video controls -------------------------------------------------------- */
-
-  /* Bigger center play ripple */
-  .center-play {
-    width: 76px;
-    height: 76px;
-  }
-  .center-play svg { width: 32px; height: 32px; }
-
-  /* Progress bar: thicker for touch scrubbing, always show thumb */
-  .progress-wrap        { height: 5px; }
-  .progress-wrap:hover  { height: 5px; }
-  .progress-wrap:active { height: 8px; }
-  .progress-thumb       { transform: translate(-50%, -50%) scale(1); }
-
-  /* Time display: slightly smaller to save space */
-  .time-display {
-    font-size: 0.66rem;
-    min-width: 76px;
-  }
-
-  /* Bigger touch targets for all control buttons */
-  .ctrl-btn {
-    padding: 9px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-  .ctrl-btn svg { width: 22px; height: 22px; }
-
-  /* Volume slider is hover-only — useless on touch. Show it always instead. */
-  .volume-slider-wrap {
-    width: 60px;   /* always visible on mobile */
-    transition: none;
-  }
-  .volume-slider { width: 60px; }
-
-  /* Custom controls: extra bottom padding for iOS home bar / Android nav bar */
-  .custom-controls {
-    padding: 30px
-             max(10px, env(safe-area-inset-right, 10px))
-             max(14px, env(safe-area-inset-bottom, 14px))
-             max(10px, env(safe-area-inset-left, 10px));
-    gap: 10px;
-  }
-
-  /* Subtitle dropdown: limit height so it doesn't escape the frame */
-  .sub-dropdown {
-    max-height: 160px;
-    min-width: 130px;
-  }
-
-  /* --- Episode panel: full-screen on mobile ---------------------------------- */
-  .ep-panel {
-    width: 100%;
-    max-width: 100%;
-    right: -100%;
-  }
-  .ep-panel.open { right: 0; }
-
-  /* Bigger touch targets in episode list */
-  .ep-panel__item {
-    padding: 10px 12px;
-  }
-
-  .ep-panel__close {
-    padding: 8px 10px;
-    font-size: 1rem;
-  }
-}
-
-/* ── Landscape mobile: notch / camera safe-area for left/right insets ───────── */
-/* Covers any touch device in landscape (phones AND tablets)                     */
-@media (orientation: landscape) and (pointer: coarse) {
-
-  /* Pad away from left/right notch / rounded corners in landscape */
-  .player-topbar {
-    padding-left:  max(12px, env(safe-area-inset-left,  0px));
-    padding-right: max(12px, env(safe-area-inset-right, 0px));
-  }
-
-  /* Controls row: pad away from notch on both sides */
-  .custom-controls {
-    padding-left:  max(12px, env(safe-area-inset-left,  0px));
-    padding-right: max(12px, env(safe-area-inset-right, 0px));
-  }
-}
-
-/* ── Subtitle rendering (WebVTT ::cue) ───────────────────────────────────────── */
-video::cue {
-  background: rgba(0, 0, 0, 0.75);
-  color: #fff;
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 1em;
-  line-height: 1.4;
-}
-
-/* ── iOS unmute prompt ───────────────────────────────────────────────────────── */
+/* ── iOS unmute prompt ────────────────────────────────────────────────────── */
 .unmute-prompt {
   position: absolute;
   bottom: 80px;
@@ -892,9 +611,8 @@ video::cue {
   z-index: 20;
   pointer-events: all;
 }
-
 .unmute-btn {
-  background: rgba(0, 0, 0, 0.82);
+  background: rgba(0,0,0,0.82);
   color: #fff;
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: 24px;
@@ -905,42 +623,204 @@ video::cue {
   font-family: inherit;
   white-space: nowrap;
   touch-action: manipulation;
-  transition: background 0.15s;
+  transition: background .15s;
 }
 .unmute-btn:hover,
 .unmute-btn:active { background: rgba(229,9,20,0.85); border-color: transparent; }
 
-/* ── Double-tap seek indicators ──────────────────────────────────────────────── */
+/* ── Double-tap seek indicators ───────────────────────────────────────────── */
 .seek-indicator {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   padding: 10px 18px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0,0,0,0.6);
   color: #fff;
   font-size: 0.85rem;
   font-weight: 700;
   border-radius: 24px;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.25s ease;
+  transition: opacity .25s ease;
   z-index: 14;
   white-space: nowrap;
 }
-.seek-indicator.flash { opacity: 1; }
-.seek-indicator--left  { left: 10%; }
-.seek-indicator--right { right: 10%; }
+.seek-indicator.flash      { opacity: 1; }
+.seek-indicator--left      { left: 10%; }
+.seek-indicator--right     { right: 10%; }
 
-/* ── Reduced motion ──────────────────────────────────────────────────────────── */
+/* ── Touch targets ────────────────────────────────────────────────────────── */
+.ctrl-btn, .lang-btn, .src-btn, .topbar-fs-btn,
+.ep-panel__item, .progress-wrap, .player-back, .volume-slider {
+  touch-action: manipulation;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FULLSCREEN — when user fullscreens the player-frame-wrap
+   ═══════════════════════════════════════════════════════════════════════════ */
+.player-frame-wrap:fullscreen,
+.player-frame-wrap:-webkit-full-screen {
+  aspect-ratio: unset;
+  width: 100%;
+  height: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE  (≤ 767px wide)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* Stack vertically */
+  .watch-layout {
+    flex-direction: column;
+  }
+
+  /* Nav height compensation if any */
+  html, body { overflow-x: hidden; }
+
+  /* Full-width video */
+  .player-frame-wrap {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+  }
+
+  /* Topbar: compact */
+  .player-topbar {
+    height: 48px;
+    min-height: 48px;
+    padding: 0 0.75rem;
+  }
+
+  .player-title {
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  /* Controls bar: wrap source buttons */
+  .watch-controls-bar {
+    padding: 0.5rem 0.75rem;
+    gap: 0.4rem;
+  }
+
+  /* Source buttons scroll horizontally on mobile */
+  .source-btns {
+    order: 10;
+    flex: 0 0 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 0;
+  }
+  .source-btns::-webkit-scrollbar { display: none; }
+
+  .src-btn {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    min-height: 40px;
+  }
+
+  .lang-btn {
+    padding: 6px 10px;
+    min-height: 40px;
+  }
+
+  .ep-nav { margin-left: auto; }
+  .ep-nav a, .ep-nav span {
+    padding: 5px 10px;
+    font-size: 0.7rem;
+    min-height: 40px;
+  }
+
+  .player-status {
+    flex: 0 0 100%;
+    order: -1;
+    font-size: 0.65rem;
+  }
+
+  /* Sidebar stacks below controls */
+  .ep-sidebar {
+    width: 100%;
+    position: static;
+    height: auto;
+    max-height: none;
+    border-left: none;
+    border-top: 1px solid #1e1e1e;
+  }
+
+  /* Collapsible on mobile: list hidden when .collapsed */
+  .ep-sidebar.collapsed .ep-panel__list {
+    display: none;
+  }
+
+  /* Show the mobile toggle button */
+  .ep-sidebar-toggle {
+    display: inline-block;
+  }
+
+  /* Limit list height on mobile so it doesn't take over the page */
+  .ep-sidebar:not(.collapsed) .ep-panel__list {
+    max-height: 55vh;
+  }
+
+  /* Bigger custom-controls touch targets */
+  .ctrl-btn {
+    padding: 9px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .ctrl-btn svg { width: 22px; height: 22px; }
+
+  .progress-wrap { height: 5px; }
+  .progress-wrap:hover  { height: 5px; }
+  .progress-wrap:active { height: 8px; }
+  .progress-thumb { transform: translate(-50%, -50%) scale(1); }
+
+  .time-display { font-size: 0.66rem; min-width: 76px; }
+
+  .volume-slider-wrap { width: 56px; transition: none; }
+  .volume-slider      { width: 56px; }
+
+  .custom-controls {
+    padding: 28px
+             max(10px, env(safe-area-inset-right, 10px))
+             max(12px, env(safe-area-inset-bottom, 12px))
+             max(10px, env(safe-area-inset-left, 10px));
+    gap: 10px;
+  }
+
+  .sub-dropdown { max-height: 160px; min-width: 130px; }
+
+  /* Safe-area insets on notched phones */
+  .player-topbar {
+    padding-left:  max(12px, env(safe-area-inset-left,  12px));
+    padding-right: max(12px, env(safe-area-inset-right, 12px));
+  }
+}
+
+/* ── Landscape phone: safe-area notch insets ──────────────────────────────── */
+@media (orientation: landscape) and (pointer: coarse) {
+  .player-topbar {
+    padding-left:  max(12px, env(safe-area-inset-left,  0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+  .custom-controls {
+    padding-left:  max(12px, env(safe-area-inset-left,  0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* ── Subtitle rendering ───────────────────────────────────────────────────── */
+video::cue {
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 1em;
+  line-height: 1.4;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; border-top-color: #E50914; }
-  .player-back,
-  .lang-btn,
-  .src-btn,
-  .ctrl-btn,
-  .progress-wrap,
-  .progress-fill,
-  .progress-thumb,
-  .volume-slider-wrap,
+  .lang-btn, .src-btn, .ctrl-btn, .progress-wrap,
+  .progress-fill, .progress-thumb, .volume-slider-wrap,
   .custom-controls { transition: none; }
 }

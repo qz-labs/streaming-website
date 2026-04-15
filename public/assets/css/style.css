@@ -312,7 +312,6 @@ a, button, [role="button"], input, select, label, summary {
   overflow-x: auto;
   scroll-behavior: smooth;
   padding-bottom: 6px;
-  scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -359,7 +358,6 @@ a, button, [role="button"], input, select, label, summary {
   cursor: pointer;
   transition: transform 0.25s ease, box-shadow 0.25s ease, z-index 0s 0.25s;
   background: var(--bg-card);
-  scroll-snap-align: start;
 }
 
 .card:hover {
@@ -389,6 +387,13 @@ a, button, [role="button"], input, select, label, summary {
 }
 
 .card:hover .card__overlay { opacity: 1; }
+
+/* Touch devices: always show the overlay so titles are readable */
+@media (hover: none) and (pointer: coarse) {
+  .card__overlay { opacity: 1; }
+  /* Prevent scale on tap — it breaks layout on mobile grids */
+  .card:hover { transform: none; box-shadow: none; z-index: auto; }
+}
 
 /* Anime type badge (OVA, Special, Movie) — top-left of card */
 .card__type-badge {
@@ -842,14 +847,18 @@ a, button, [role="button"], input, select, label, summary {
 
 .search-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
 }
 
 .search-grid .card {
   width: 100%;
+  height: auto;
   aspect-ratio: 2/3;
 }
+
+/* Always show card info (title/year) on the search grid — no hover needed */
+.search-grid .card__overlay { opacity: 1; }
 
 .empty-state {
   text-align: center;
@@ -926,7 +935,14 @@ a, button, [role="button"], input, select, label, summary {
 }
 
 @media (max-width: 768px) {
-  :root { --card-width: 130px; --card-height: 195px; }
+  /* Shrink the nav on portrait phones so it doesn't eat the screen */
+  :root {
+    --nav-height: 56px;
+    --card-width: 130px;
+    --card-height: 195px;
+  }
+
+  .nav__logo { font-size: 1.35rem; }
 
   .hero { height: 65vh; height: 65svh; }
   .hero__content { max-width: 95%; }
@@ -1273,6 +1289,54 @@ a, button, [role="button"], input, select, label, summary {
 
 .detail-content {
   animation: pageIn 0.4s ease both;
+}
+
+/* ── Watch page mini-nav (shown on watch.php / anime-watch.php) ──────────── */
+.watch-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1rem;
+  height: 44px;
+  background: #050505;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+
+.watch-nav__logo {
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #E50914;
+  letter-spacing: -0.5px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.watch-nav__back {
+  font-size: 0.8rem;
+  color: #666;
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.watch-nav__back:hover { color: #ccc; border-color: #555; }
+
+/* ── Mobile: search grid responsive columns ──────────────────────────────── */
+@media (max-width: 479px) {
+  .search-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+  }
+}
+
+/* ── Mobile landscape: show more columns in search ──────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .search-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
 }
 
 /* ── Back to top ─────────────────────────────────────────────────────────────── */
