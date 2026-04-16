@@ -130,8 +130,8 @@ $activePage = 'home';
 <?php endif; ?>
 
 <main class="rows-container">
-  <?php if (!empty($continueWatching)) renderContinueWatchingRow($continueWatching); ?>
-  <?php if (!empty($myFavorites))      renderFavoritesRow('My Favorites', $myFavorites); ?>
+  <?php renderContinueWatchingRow($continueWatching); ?>
+  <?php renderFavoritesRow('My Favorites', $myFavorites); ?>
   <div id="movies">
     <?php renderRow('Trending Movies', $trending, 'movie'); ?>
   </div>

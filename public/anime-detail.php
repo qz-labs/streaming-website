@@ -79,8 +79,9 @@ if ($isMovie) {
 $today      = date('Y-m-d');
 
 // Favorites state
-$user        = currentUser();
-$isFavorited = false;
+$user            = currentUser();
+$isFavorited     = false;
+$continueProgress = null;
 if ($user) {
     require_once __DIR__ . '/../src/Database.php';
     $stmt = Database::get()->prepare(
@@ -88,6 +89,13 @@ if ($user) {
     );
     $stmt->execute([$user['id'], $malId]);
     $isFavorited = (bool)$stmt->fetch();
+
+    $stmt = Database::get()->prepare(
+        "SELECT episode, progress_seconds FROM watch_progress
+         WHERE user_id=? AND content_type='anime' AND content_id=?"
+    );
+    $stmt->execute([$user['id'], $malId]);
+    $continueProgress = $stmt->fetch() ?: null;
 }
 
 $activePage = 'anime';
@@ -156,7 +164,18 @@ $activePage = 'anime';
       <?php endif; ?>
 
       <div class="detail-buttons">
-        <?php if ($firstEpUrl): ?>
+        <?php if ($continueProgress): ?>
+          <?php
+            $contEp  = max(1, (int)$continueProgress['episode']);
+            $contT   = (int)$continueProgress['progress_seconds'];
+            $contUrl = animeWatchUrl($malId, $contEp, 1, $contT)
+                       . '&from=' . urlencode('/anime-detail.php?mal_id=' . $malId);
+          ?>
+          <a class="btn btn-play" href="<?= e($contUrl) ?>">&#9654; Continue Ep <?= $contEp ?></a>
+          <?php if (!$isMovie && $firstEpUrl): ?>
+            <a class="btn btn-info" href="<?= e($firstEpUrl) ?>">&#9654; Ep 1</a>
+          <?php endif; ?>
+        <?php elseif ($firstEpUrl): ?>
           <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; <?= $isMovie ? 'Watch Movie' : 'Play Episode 1' ?></a>
         <?php else: ?>
           <span class="btn btn-info" style="cursor:default;opacity:.5;">&#9888; Stream unavailable</span>

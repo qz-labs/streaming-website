@@ -7,10 +7,16 @@ require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/TmdbApi.php';
 
 // ── Input validation ──────────────────────────────────────────────────────────
-$type    = $_GET['type'] ?? '';
-$id      = intval($_GET['id']  ?? 0);
-$season  = intval($_GET['s']   ?? 1);
-$episode = intval($_GET['e']   ?? 1);
+$type      = $_GET['type'] ?? '';
+$id        = intval($_GET['id']  ?? 0);
+$season    = intval($_GET['s']   ?? 1);
+$episode   = intval($_GET['e']   ?? 1);
+$startTime = max(0, intval($_GET['t'] ?? 0));
+
+// Optional back-navigation override (set by continue-watching links)
+$rawFrom  = $_GET['from'] ?? '';
+$safeFrom = ($rawFrom !== '' && str_starts_with($rawFrom, '/') && !str_starts_with($rawFrom, '//'))
+    ? $rawFrom : '';
 
 if (!in_array($type, ['movie', 'tv'], true) || $id <= 0) {
     header('Location: ' . BASE_URL . '/');
@@ -31,6 +37,36 @@ $meta = ($type === 'movie') ? $api->movieDetails($id) : $api->tvDetails($id);
 $title     = $meta['title'] ?? $meta['name'] ?? 'Streaming';
 $origLang  = $meta['original_language'] ?? 'en';
 
+// ── Record watch immediately (server-side, reliable) ─────────────────────────
+// Saves the current episode so it appears in Continue Watching right away.
+// On DUPLICATE KEY: update episode/season (in case user changed episodes) and
+// reset progress only when the episode changed; preserve progress on same ep.
+require_once __DIR__ . '/../src/Database.php';
+$watchUser = currentUser();
+if ($watchUser) {
+    Database::get()->prepare("
+        INSERT INTO watch_progress
+            (user_id, content_type, content_id, content_title, poster_path,
+             season, episode, episode_title, progress_seconds, duration_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?, '', 0, 0)
+        ON DUPLICATE KEY UPDATE
+            content_title    = VALUES(content_title),
+            poster_path      = VALUES(poster_path),
+            progress_seconds = IF(season != VALUES(season) OR episode != VALUES(episode),
+                                  0, progress_seconds),
+            duration_seconds = IF(season != VALUES(season) OR episode != VALUES(episode),
+                                  0, duration_seconds),
+            season           = VALUES(season),
+            episode          = VALUES(episode),
+            updated_at       = CURRENT_TIMESTAMP
+    ")->execute([
+        $watchUser['id'], $type, $id, $title,
+        $meta['poster_path'] ?? '',
+        $type === 'tv' ? $season  : 0,
+        $type === 'tv' ? $episode : 0,
+    ]);
+}
+
 $langNames = [
     'ja' => 'JPN', 'ko' => 'KOR', 'zh' => 'CHN', 'fr' => 'FRA',
     'de' => 'DEU', 'es' => 'SPA', 'it' => 'ITA', 'pt' => 'POR',
@@ -39,9 +75,11 @@ $langNames = [
 $origLangLabel = strtoupper($langNames[$origLang] ?? $origLang);
 $isEnglish     = ($origLang === 'en');
 
-$backUrl  = ($type === 'movie')
+$detailUrl = ($type === 'movie')
     ? BASE_URL . '/movie.php?id=' . $id
     : BASE_URL . '/tv.php?id=' . $id . '&season=' . $season;
+
+$backUrl = $safeFrom !== '' ? BASE_URL . $safeFrom : $detailUrl;
 
 $pageTitle = ($type === 'tv')
     ? e($title) . ' &ndash; S' . $season . 'E' . $episode
@@ -95,6 +133,7 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
 <div class="watch-nav">
   <a class="watch-nav__logo" href="<?= BASE_URL ?>/"><?= e(SITE_NAME) ?></a>
   <a class="watch-nav__back" href="<?= e($backUrl) ?>">&#8592; Back</a>
+  <a class="watch-nav__details" href="<?= e($detailUrl) ?>">&#9432; Details</a>
 </div>
 
 <!-- ── Main watch layout ───────────────────────────────────────────────────── -->
@@ -112,6 +151,7 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
           &mdash; S<?= $season ?>E<?= $episode ?>
         <?php endif; ?>
       </span>
+      <a class="player-details" href="<?= e($detailUrl) ?>" title="Details">&#9432; Details</a>
       <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen video">
         <svg id="topbar-fs-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
           <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
@@ -130,7 +170,7 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
         frameborder="0"
         allowfullscreen
         referrerpolicy="origin"
-        allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+        allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *"
         scrolling="no"
       ></iframe>
     </div>
@@ -382,6 +422,23 @@ $isEnglishJson   = $isEnglish ? 'true' : 'false';
     }
     document.addEventListener('fullscreenchange',       updateFsIcon);
     document.addEventListener('webkitfullscreenchange', updateFsIcon);
+  }
+})();
+</script>
+
+<script>
+// ── Resume-position toast ─────────────────────────────────────────────────────
+(function () {
+  'use strict';
+  const RESUME_AT = <?= (int)$startTime ?>;
+  if (RESUME_AT > 0) {
+    const mins = Math.floor(RESUME_AT / 60);
+    const secs = String(RESUME_AT % 60).padStart(2, '0');
+    const el   = document.createElement('div');
+    el.className   = 'resume-toast';
+    el.textContent = 'Resuming from ' + mins + ':' + secs;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
   }
 })();
 </script>

@@ -46,17 +46,21 @@ function stillUrl(?string $path): string
 /**
  * URL to the movie watch page.
  */
-function movieWatchUrl(int $id): string
+function movieWatchUrl(int $id, int $t = 0): string
 {
-    return BASE_URL . '/watch.php?type=movie&id=' . $id;
+    $url = BASE_URL . '/watch.php?type=movie&id=' . $id;
+    if ($t > 0) $url .= '&t=' . $t;
+    return $url;
 }
 
 /**
  * URL to the TV episode watch page.
  */
-function tvWatchUrl(int $id, int $season, int $episode): string
+function tvWatchUrl(int $id, int $season, int $episode, int $t = 0): string
 {
-    return BASE_URL . '/watch.php?type=tv&id=' . $id . '&s=' . $season . '&e=' . $episode;
+    $url = BASE_URL . '/watch.php?type=tv&id=' . $id . '&s=' . $season . '&e=' . $episode;
+    if ($t > 0) $url .= '&t=' . $t;
+    return $url;
 }
 
 /**
@@ -218,9 +222,11 @@ function animeDetailUrl(int $malId): string
 /**
  * URL to the anime HLS watch page (Consumet-powered).
  */
-function animeWatchUrl(int $malId, int $episode = 1, int $season = 1): string
+function animeWatchUrl(int $malId, int $episode = 1, int $season = 1, int $t = 0): string
 {
-    return BASE_URL . '/anime-watch.php?mal_id=' . $malId . '&episode=' . $episode . '&season=' . $season;
+    $url = BASE_URL . '/anime-watch.php?mal_id=' . $malId . '&episode=' . $episode . '&season=' . $season;
+    if ($t > 0) $url .= '&t=' . $t;
+    return $url;
 }
 
 /**
@@ -346,10 +352,15 @@ function renderRow(string $title, array $items, string $type): void
  */
 function renderContinueWatchingRow(array $items): void
 {
-    if (empty($items)) return;
-
     echo '<section class="row">';
     echo '<h2 class="row__title">Continue Watching</h2>';
+
+    if (empty($items)) {
+        echo '<div class="row__empty"><p>Nothing here yet &mdash; start watching something and it will appear here.</p></div>';
+        echo '</section>';
+        return;
+    }
+
     echo '<div class="row__track">';
 
     foreach ($items as $item) {
@@ -363,11 +374,14 @@ function renderContinueWatchingRow(array $items): void
         $duration = (int)$item['duration_seconds'];
 
         if ($type === 'anime') {
-            $link = animeWatchUrl($id, max(1, $episode), $season);
+            $watchLink  = animeWatchUrl($id, max(1, $episode), $season, $progress) . '&from=' . urlencode('/anime.php');
+            $detailLink = animeDetailUrl($id);
         } elseif ($type === 'tv') {
-            $link = tvWatchUrl($id, max(1, $season), max(1, $episode));
+            $watchLink  = tvWatchUrl($id, max(1, $season), max(1, $episode), $progress) . '&from=' . urlencode('/');
+            $detailLink = BASE_URL . '/tv.php?id=' . $id;
         } else {
-            $link = movieWatchUrl($id);
+            $watchLink  = movieWatchUrl($id, $progress) . '&from=' . urlencode('/');
+            $detailLink = BASE_URL . '/movie.php?id=' . $id;
         }
 
         // Progress bar percentage (0–100); 0 when duration unknown
@@ -377,13 +391,17 @@ function renderContinueWatchingRow(array $items): void
         if ($type === 'tv'    && $season > 0 && $episode > 0) $subLabel = 'S' . $season . ' E' . $episode;
         if ($type === 'anime' && $episode > 0)                 $subLabel = 'Ep ' . $episode;
 
-        echo '<a class="card card--progress" href="' . e($link) . '" title="' . e($title) . '">';
+        echo '<div class="card card--progress">';
 
+        // Poster image — sits in normal flow, fills the card
         if ($type === 'anime' && $poster !== '') {
             echo '<img src="' . e($poster) . '" alt="' . e($title) . '" loading="lazy" referrerpolicy="no-referrer">';
         } else {
             echo '<img src="' . e(imgUrl($poster !== '' ? $poster : null)) . '" alt="' . e($title) . '" loading="lazy">';
         }
+
+        // Stretched invisible link — covers entire card, handles play click
+        echo '<a class="card__watch-link" href="' . e($watchLink) . '" aria-label="Play ' . e($title) . '"></a>';
 
         echo '<div class="card__play">&#9654;</div>';
         echo '<div class="card__progress-bar"><div class="card__progress-fill" style="width:' . $pct . '%"></div></div>';
@@ -391,7 +409,11 @@ function renderContinueWatchingRow(array $items): void
         echo '<p class="card__title">' . e($title) . '</p>';
         if ($subLabel) echo '<p class="card__year">' . e($subLabel) . '</p>';
         echo '</div>';
-        echo '</a>';
+
+        // Details button — sits above the stretched link
+        echo '<a class="card__details-btn" href="' . e($detailLink) . '">&#9432;</a>';
+
+        echo '</div>';
     }
 
     echo '</div>';
@@ -407,10 +429,15 @@ function renderContinueWatchingRow(array $items): void
  */
 function renderFavoritesRow(string $title, array $items): void
 {
-    if (empty($items)) return;
-
     echo '<section class="row">';
     echo '<h2 class="row__title">' . e($title) . '</h2>';
+
+    if (empty($items)) {
+        echo '<div class="row__empty"><p>No favorites yet &mdash; click the &#9825; on any title to save it here.</p></div>';
+        echo '</section>';
+        return;
+    }
+
     echo '<div class="row__track">';
 
     foreach ($items as $item) {

@@ -33,7 +33,7 @@ $_navAdmin = $_navUser && $_navUser['role'] === 'admin';
   </div>
 
   <?php if ($_navUser): ?>
-  <a class="nav__logout" href="<?= BASE_URL ?>/logout.php" title="Sign out <?= htmlspecialchars($_navUser['email']) ?>">Sign Out</a>
+  <a class="nav__logout" href="<?= BASE_URL ?>/logout.php" title="Sign out <?= htmlspecialchars($_navUser['username']) ?>">Sign Out</a>
   <?php endif; ?>
 
   <button

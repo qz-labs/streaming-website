@@ -7,8 +7,14 @@ require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/JikanApi.php';
 
 // ── Input validation ──────────────────────────────────────────────────────────
-$malId   = intval($_GET['mal_id']  ?? 0);
-$episode = intval($_GET['episode'] ?? 1);
+$malId     = intval($_GET['mal_id']  ?? 0);
+$episode   = intval($_GET['episode'] ?? 1);
+$startTime = max(0, intval($_GET['t'] ?? 0));
+
+// Optional back-navigation override (set by continue-watching / detail-page links)
+$rawFrom  = $_GET['from'] ?? '';
+$safeFrom = ($rawFrom !== '' && str_starts_with($rawFrom, '/') && !str_starts_with($rawFrom, '//'))
+    ? $rawFrom : '';
 
 if ($malId <= 0 || $episode <= 0) {
     header('Location: ' . BASE_URL . '/anime.php');
@@ -69,7 +75,8 @@ foreach ($sequelChain as $i => $s) {
 // ── Stream API URL ────────────────────────────────────────────────────────────
 $streamApiUrl  = BASE_URL . '/stream.php?mal_id=' . $malId . '&episode=' . $episode;
 $consumetReady = CONSUMET_URL !== '';
-$backUrl       = BASE_URL . '/anime-detail.php?mal_id=' . $malId;
+$detailUrl     = BASE_URL . '/anime-detail.php?mal_id=' . $malId;
+$backUrl       = $safeFrom !== '' ? BASE_URL . $safeFrom : $detailUrl;
 $today         = date('Y-m-d');
 ?>
 <!DOCTYPE html>
@@ -88,6 +95,7 @@ $today         = date('Y-m-d');
 <div class="watch-nav">
   <a class="watch-nav__logo" href="<?= BASE_URL ?>/"><?= e(SITE_NAME) ?></a>
   <a class="watch-nav__back" href="<?= e($backUrl) ?>">&#8592; Back</a>
+  <a class="watch-nav__details" href="<?= e($detailUrl) ?>">&#9432; Details</a>
 </div>
 
 <!-- ── Main watch layout ───────────────────────────────────────────────────── -->
@@ -106,6 +114,7 @@ $today         = date('Y-m-d');
         <?php endif; ?>
         &mdash; Ep.<?= $episode ?>
       </span>
+      <a class="player-details" href="<?= e($detailUrl) ?>" title="Details">&#9432; Details</a>
       <button class="topbar-fs-btn" id="topbar-fs-btn" title="Fullscreen">
         <svg id="topbar-fs-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
           <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
@@ -299,6 +308,7 @@ $today         = date('Y-m-d');
 
   const MAL_ID     = <?= $malId ?>;
   const EPISODE    = <?= $episode ?>;
+  const START_TIME = <?= (int)$startTime ?>;
   const STREAM_API = <?= json_encode($streamApiUrl) ?>;
   const READY      = <?= $consumetReady ? 'true' : 'false' ?>;
 
@@ -715,7 +725,7 @@ $today         = date('Y-m-d');
     });
   });
 
-  fetchAndLoad(loadPref());
+  fetchAndLoad(loadPref(), START_TIME);
 
   // ── Progress tracking ──────────────────────────────────────────────────────
   const PROGRESS_META = <?= json_encode([

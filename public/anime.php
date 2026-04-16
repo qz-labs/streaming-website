@@ -133,8 +133,8 @@ $activePage = 'anime';
 <?php endif; ?>
 
 <main class="rows-container">
-  <?php if (!empty($continueWatching)) renderContinueWatchingRow($continueWatching); ?>
-  <?php if (!empty($myFavorites))      renderFavoritesRow('My Favorites', $myFavorites); ?>
+  <?php renderContinueWatchingRow($continueWatching); ?>
+  <?php renderFavoritesRow('My Favorites', $myFavorites); ?>
   <?php renderAnimeRow('Airing This Season',      $seasonal,    true); ?>
   <?php renderAnimeRow('Top Airing Now',          $topAiring,   true); ?>
   <?php renderAnimeRow('Most Popular Series',     $topTv,       true); ?>

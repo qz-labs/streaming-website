@@ -31,12 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Change admin credentials
     if ($action === 'update_admin') {
-        $newEmail    = trim($_POST['new_email']    ?? '');
+        $newUsername = trim($_POST['new_username'] ?? '');
         $newPassword = $_POST['new_password']      ?? '';
         $confirm     = $_POST['confirm_password']  ?? '';
 
-        if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
-            $message = 'Please enter a valid email address.';
+        if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $newUsername)) {
+            $message = 'Username must be 3–30 characters (letters, numbers, underscores only).';
             $msgType = 'error';
         } elseif ($newPassword !== '' && strlen($newPassword) < 6) {
             $message = 'New password must be at least 6 characters.';
@@ -46,25 +46,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msgType = 'error';
         } else {
             $adminId = currentUser()['id'];
-            if ($newPassword !== '') {
-                $hash = password_hash($newPassword, PASSWORD_BCRYPT);
-                $db->prepare("UPDATE users SET email = ?, password = ? WHERE id = ?")
-                   ->execute([$newEmail, $hash, $adminId]);
+            // Check username not taken by someone else
+            $taken = $db->prepare("SELECT id FROM users WHERE username = ? AND id != ? LIMIT 1");
+            $taken->execute([$newUsername, $adminId]);
+            if ($taken->fetch()) {
+                $message = 'That username is already taken.';
+                $msgType = 'error';
             } else {
-                $db->prepare("UPDATE users SET email = ? WHERE id = ?")
-                   ->execute([$newEmail, $adminId]);
+                if ($newPassword !== '') {
+                    $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $db->prepare("UPDATE users SET username = ?, password = ? WHERE id = ?")
+                       ->execute([$newUsername, $hash, $adminId]);
+                } else {
+                    $db->prepare("UPDATE users SET username = ? WHERE id = ?")
+                       ->execute([$newUsername, $adminId]);
+                }
+                // Refresh session
+                $_SESSION['auth_user']['username'] = $newUsername;
+                $message = 'Admin credentials updated successfully.';
             }
-            // Refresh session
-            $_SESSION['auth_user']['email'] = $newEmail;
-            $message = 'Admin credentials updated successfully.';
+        }
+    }
+
+    // Change a user's role
+    if ($action === 'set_role') {
+        $userId  = (int)($_POST['user_id'] ?? 0);
+        $newRole = $_POST['new_role'] ?? '';
+        if (in_array($newRole, ['user', 'admin'], true) && $userId !== currentUser()['id']) {
+            $db->prepare("UPDATE users SET role = ? WHERE id = ?")->execute([$newRole, $userId]);
+            $message = 'User role updated.';
         }
     }
 }
 
 // ── Fetch data ─────────────────────────────────────────────────────────────────
-$pending  = $db->query("SELECT * FROM users WHERE status = 'pending'  AND role = 'user' ORDER BY created_at ASC")->fetchAll();
-$approved = $db->query("SELECT * FROM users WHERE status = 'approved' AND role = 'user' ORDER BY created_at DESC")->fetchAll();
-$rejected = $db->query("SELECT * FROM users WHERE status = 'rejected' AND role = 'user' ORDER BY created_at DESC")->fetchAll();
+$pending  = $db->query("SELECT * FROM users WHERE status = 'pending' ORDER BY created_at ASC")->fetchAll();
+$approved = $db->query("SELECT * FROM users WHERE status = 'approved' ORDER BY role ASC, created_at DESC")->fetchAll();
+$rejected = $db->query("SELECT * FROM users WHERE status = 'rejected' ORDER BY created_at DESC")->fetchAll();
 $admin    = currentUser();
 ?><!DOCTYPE html>
 <html lang="en">
@@ -220,7 +238,7 @@ $admin    = currentUser();
       <table class="user-table">
         <thead>
           <tr>
-            <th>Email</th>
+            <th>Username</th>
             <th>Requested</th>
             <th>Actions</th>
           </tr>
@@ -231,7 +249,7 @@ $admin    = currentUser();
           <?php else: ?>
             <?php foreach ($pending as $u): ?>
             <tr>
-              <td><?= htmlspecialchars($u['email']) ?></td>
+              <td><?= htmlspecialchars($u['username']) ?></td>
               <td class="date-cell"><?= htmlspecialchars($u['created_at']) ?></td>
               <td>
                 <div class="actions">
@@ -267,31 +285,53 @@ $admin    = currentUser();
       <table class="user-table">
         <thead>
           <tr>
-            <th>Email</th>
+            <th>Username</th>
+            <th>Role</th>
             <th>Joined</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <?php if (empty($approved)): ?>
-            <tr class="empty-row"><td colspan="3">No approved users yet</td></tr>
+            <tr class="empty-row"><td colspan="4">No approved users yet</td></tr>
           <?php else: ?>
             <?php foreach ($approved as $u): ?>
+            <?php $isSelf = (int)$u['id'] === (int)$admin['id']; ?>
             <tr>
-              <td><?= htmlspecialchars($u['email']) ?></td>
+              <td><?= htmlspecialchars($u['username']) ?></td>
+              <td><?= $u['role'] === 'admin' ? '<strong>Admin</strong>' : 'User' ?></td>
               <td class="date-cell"><?= htmlspecialchars($u['created_at']) ?></td>
               <td>
                 <div class="actions">
-                  <form method="POST" onsubmit="return confirm('Reject this user?')">
-                    <input type="hidden" name="action"  value="reject">
-                    <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                    <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
-                  </form>
-                  <form method="POST" onsubmit="return confirm('Delete this user permanently?')">
-                    <input type="hidden" name="action"  value="delete">
-                    <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                  </form>
+                  <?php if (!$isSelf): ?>
+                    <?php if ($u['role'] === 'user'): ?>
+                    <form method="POST" onsubmit="return confirm('Promote <?= htmlspecialchars($u['username']) ?> to admin?')">
+                      <input type="hidden" name="action"   value="set_role">
+                      <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
+                      <input type="hidden" name="new_role" value="admin">
+                      <button type="submit" class="btn btn-green btn-sm">Make Admin</button>
+                    </form>
+                    <form method="POST" onsubmit="return confirm('Revoke access for <?= htmlspecialchars($u['username']) ?>?')">
+                      <input type="hidden" name="action"  value="reject">
+                      <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                      <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+                    </form>
+                    <?php else: ?>
+                    <form method="POST" onsubmit="return confirm('Demote <?= htmlspecialchars($u['username']) ?> to regular user?')">
+                      <input type="hidden" name="action"   value="set_role">
+                      <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
+                      <input type="hidden" name="new_role" value="user">
+                      <button type="submit" class="btn btn-ghost btn-sm">Demote</button>
+                    </form>
+                    <?php endif; ?>
+                    <form method="POST" onsubmit="return confirm('Delete <?= htmlspecialchars($u['username']) ?> permanently?')">
+                      <input type="hidden" name="action"  value="delete">
+                      <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                  <?php else: ?>
+                    <span style="color:var(--muted);font-size:0.8rem">(you)</span>
+                  <?php endif; ?>
                 </div>
               </td>
             </tr>
@@ -315,7 +355,7 @@ $admin    = currentUser();
       <table class="user-table">
         <thead>
           <tr>
-            <th>Email</th>
+            <th>Username</th>
             <th>Requested</th>
             <th>Actions</th>
           </tr>
@@ -323,7 +363,7 @@ $admin    = currentUser();
         <tbody>
           <?php foreach ($rejected as $u): ?>
           <tr>
-            <td><?= htmlspecialchars($u['email']) ?></td>
+            <td><?= htmlspecialchars($u['username']) ?></td>
             <td class="date-cell"><?= htmlspecialchars($u['created_at']) ?></td>
             <td>
               <div class="actions">
@@ -358,13 +398,13 @@ $admin    = currentUser();
         <input type="hidden" name="action" value="update_admin">
 
         <div class="field">
-          <label for="new_email">Admin Email</label>
+          <label for="new_username">Admin Username</label>
           <input
-            type="email"
-            id="new_email"
-            name="new_email"
+            type="text"
+            id="new_username"
+            name="new_username"
             required
-            value="<?= htmlspecialchars($admin['email']) ?>"
+            value="<?= htmlspecialchars($admin['username']) ?>"
           >
         </div>
 

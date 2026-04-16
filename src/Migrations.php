@@ -31,12 +31,12 @@ class Migrations
         // Seed default admin if none exists yet
         $count = (int) $db->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
         if ($count === 0) {
-            $adminEmail    = $_ENV['ADMIN_EMAIL']    ?? 'admin@localhost';
+            $adminUsername = $_ENV['ADMIN_USERNAME'] ?? 'quintoniusvlint';
             $adminPassword = $_ENV['ADMIN_PASSWORD'] ?? 'changeme';
             $hash = password_hash($adminPassword, PASSWORD_BCRYPT);
             $db->prepare(
-                "INSERT INTO users (email, password, role, status) VALUES (?, ?, 'admin', 'approved')"
-            )->execute([$adminEmail, $hash]);
+                "INSERT INTO users (username, password, role, status) VALUES (?, ?, 'admin', 'approved')"
+            )->execute([$adminUsername, $hash]);
         }
     }
 }

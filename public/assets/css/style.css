@@ -278,6 +278,14 @@ a, button, [role="button"], input, select, label, summary {
 
 .btn-info:hover { background: rgba(109, 109, 110, 0.5); }
 
+.btn-secondary {
+  background: rgba(109, 109, 110, 0.45);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.btn-secondary:hover { background: rgba(109, 109, 110, 0.65); }
+
 .btn-red {
   background: var(--red);
   color: var(--text);
@@ -1505,6 +1513,102 @@ a, button, [role="button"], input, select, label, summary {
 }
 
 .footer-bottom a:hover { color: var(--text-muted); }
+
+/* ── Continue-watching card: stretched play link + details button ────────────── */
+
+/* Invisible stretched link — sits under overlays, covers entire card for play */
+.card__watch-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+}
+
+/* Play icon, overlay, and progress bar sit above the watch link visually,
+   but are transparent to pointer events so clicks reach the link below */
+.card--progress .card__play,
+.card--progress .card__overlay,
+.card--progress .card__progress-bar {
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Details button — top-right circle, sits above everything, captures own clicks */
+.card__details-btn {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 3;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 0.95rem;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.card:hover .card__details-btn { opacity: 1; }
+.card__details-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Always visible on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .card__details-btn { opacity: 1; }
+}
+
+/* ── Watch-nav details link ───────────────────────────────────────────────────── */
+.watch-nav__details {
+  font-size: 0.8rem;
+  color: #666;
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid #333;
+  border-radius: 3px;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  margin-left: auto;
+}
+.watch-nav__details:hover { color: #ccc; border-color: #555; }
+
+/* ── Row empty-state placeholder ────────────────────────────────────────────── */
+.row__empty {
+  padding: 1.2rem 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.row__empty p { margin: 0; }
+
+/* ── Resume-position toast (VidSrc watch page) ───────────────────────────────── */
+.resume-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 30, 0.92);
+  color: #fff;
+  padding: 0.55rem 1.2rem;
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: fadeOutToast 4s forwards;
+}
+
+@keyframes fadeOutToast {
+  0%,
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 /* ── Continue Watching — progress bar ───────────────────────────────────────── */
 .card--progress { position: relative; }

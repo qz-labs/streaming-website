@@ -59,17 +59,17 @@ function requireAdmin(): void {
 /**
  * Returns the user row on success, or an error string on failure.
  */
-function attemptLogin(string $email, string $password): array|string {
+function attemptLogin(string $username, string $password): array|string {
     $db   = Database::get();
-    $stmt = $db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
-    $stmt->execute([trim($email)]);
+    $stmt = $db->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
+    $stmt->execute([trim($username)]);
     $user = $stmt->fetch();
 
     if (!$user) {
-        return 'Invalid email or password.';
+        return 'Invalid username or password.';
     }
     if (!password_verify($password, $user['password'])) {
-        return 'Invalid email or password.';
+        return 'Invalid username or password.';
     }
     if ($user['status'] === 'pending') {
         return 'Your account is awaiting admin approval.';
@@ -80,9 +80,9 @@ function attemptLogin(string $email, string $password): array|string {
 
     authStart();
     $_SESSION['auth_user'] = [
-        'id'    => $user['id'],
-        'email' => $user['email'],
-        'role'  => $user['role'],
+        'id'       => $user['id'],
+        'username' => $user['username'],
+        'role'     => $user['role'],
     ];
     session_regenerate_id(true);
     return $user;
@@ -92,28 +92,28 @@ function attemptLogin(string $email, string $password): array|string {
  * Register a new user (status = pending, requires admin approval).
  * Returns true on success or an error string on failure.
  */
-function registerUser(string $email, string $password): true|string {
-    $email = trim($email);
+function registerUser(string $username, string $password): true|string {
+    $username = trim($username);
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return 'Please enter a valid email address.';
+    if ($username === '' || !preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
+        return 'Username must be 3–30 characters and may only contain letters, numbers, and underscores.';
     }
     if (strlen($password) < 6) {
         return 'Password must be at least 6 characters.';
     }
 
     $db   = Database::get();
-    $stmt = $db->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-    $stmt->execute([$email]);
+    $stmt = $db->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
+    $stmt->execute([$username]);
     if ($stmt->fetch()) {
-        return 'An account with that email already exists.';
+        return 'That username is already taken.';
     }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
     $db->prepare("
-        INSERT INTO users (email, password, role, status)
+        INSERT INTO users (username, password, role, status)
         VALUES (?, ?, 'user', 'pending')
-    ")->execute([$email, $hash]);
+    ")->execute([$username, $hash]);
 
     return true;
 }

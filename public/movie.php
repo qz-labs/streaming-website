@@ -37,9 +37,10 @@ $backdrop  = backdropUrl($movie['backdrop_path'] ?? null, 'w780');
 $poster    = imgUrl($movie['poster_path'] ?? null, 'w342');
 $watchUrl  = movieWatchUrl($id);
 
-// Favorites state
-$user        = currentUser();
-$isFavorited = false;
+// Favorites state + continue watching
+$user            = currentUser();
+$isFavorited     = false;
+$continueProgress = null;
 if ($user) {
     require_once __DIR__ . '/../src/Database.php';
     $stmt = Database::get()->prepare(
@@ -47,6 +48,13 @@ if ($user) {
     );
     $stmt->execute([$user['id'], $id]);
     $isFavorited = (bool)$stmt->fetch();
+
+    $stmt2 = Database::get()->prepare(
+        "SELECT progress_seconds FROM watch_progress
+         WHERE user_id=? AND content_type='movie' AND content_id=?"
+    );
+    $stmt2->execute([$user['id'], $id]);
+    $continueProgress = $stmt2->fetch() ?: null;
 }
 $favPoster = $movie['poster_path'] ?? '';
 
@@ -97,7 +105,16 @@ $activePage = '';
       <?php endif; ?>
 
       <div class="detail-buttons">
-        <a class="btn btn-play" href="<?= e($watchUrl) ?>">&#9654; Play Movie</a>
+        <?php if ($continueProgress): ?>
+          <?php
+            $contT       = (int)$continueProgress['progress_seconds'];
+            $contWatchUrl = movieWatchUrl($id, $contT) . '&from=' . urlencode('/movie.php?id=' . $id);
+          ?>
+          <a class="btn btn-play" href="<?= e($contWatchUrl) ?>">&#9654; Continue Movie</a>
+          <a class="btn btn-secondary" href="<?= e($watchUrl) ?>">&#9654; Play from Start</a>
+        <?php else: ?>
+          <a class="btn btn-play" href="<?= e($watchUrl) ?>">&#9654; Play Movie</a>
+        <?php endif; ?>
         <a class="btn btn-info" href="<?= e(BASE_URL . '/') ?>" id="detail-back-btn">&#8592; Back</a>
         <button
           class="btn btn-fav<?= $isFavorited ? ' btn-fav--active' : '' ?>"

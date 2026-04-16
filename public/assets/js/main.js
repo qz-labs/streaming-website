@@ -281,8 +281,10 @@ document.addEventListener('DOMContentLoaded', () => {
         p.classList.toggle('active', p.dataset.genreId === genreId)
       );
       document.querySelectorAll('.row').forEach(row => {
+        const filterable = row.querySelectorAll('.card[data-genre-ids]');
+        if (!filterable.length) return; // skip rows with no genre-tagged cards (e.g. continue watching, favorites)
         let anyVisible = false;
-        row.querySelectorAll('.card[data-genre-ids]').forEach(card => {
+        filterable.forEach(card => {
           const ids = (card.dataset.genreIds || '').split(',');
           const show = genreId === 'all' || ids.includes(genreId);
           card.style.display = show ? '' : 'none';

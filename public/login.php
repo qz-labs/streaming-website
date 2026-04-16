@@ -17,11 +17,11 @@ $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode     = $_POST['mode'] ?? 'login';
-    $email    = $_POST['email']    ?? '';
+    $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
 
     if ($mode === 'login') {
-        $result = attemptLogin($email, $password);
+        $result = attemptLogin($username, $password);
         if (is_string($result)) {
             $error = $result;
         } else {
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     } elseif ($mode === 'register') {
-        $result = registerUser($email, $password);
+        $result = registerUser($username, $password);
         if ($result === true) {
             $success = 'Account request submitted! You will be able to log in once an admin approves your account.';
             $mode    = 'login';
@@ -170,15 +170,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input type="hidden" name="mode" value="<?= htmlspecialchars($mode) ?>">
 
       <div class="field">
-        <label for="email">Email address</label>
+        <label for="username">Username</label>
         <input
-          type="email"
-          id="email"
-          name="email"
+          type="text"
+          id="username"
+          name="username"
           required
-          autocomplete="email"
-          value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
-          placeholder="you@example.com"
+          autocomplete="username"
+          value="<?= htmlspecialchars($_POST['username'] ?? '') ?>"
+          placeholder="your_username"
         >
       </div>
 

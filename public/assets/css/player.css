@@ -55,6 +55,20 @@ html, body {
 }
 .player-back:hover { opacity: 1; }
 
+.player-details {
+  font-size: 0.75rem;
+  color: #ccc;
+  opacity: 0.7;
+  text-decoration: none;
+  padding: 4px 9px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  transition: opacity .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.player-details:hover { opacity: 1; }
+
 .player-title {
   flex: 1;
   font-size: 0.9rem;
