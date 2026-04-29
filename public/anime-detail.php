@@ -107,7 +107,7 @@ $activePage = 'anime';
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($title) ?> &ndash; <?= e(SITE_NAME) ?></title>
   <?php require __DIR__ . '/partials/fonts.php'; ?>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= ASSET_VERSION ?>">
   <style>
     .anime-detail-hero {
       background: linear-gradient(135deg, #0d0017 0%, #141414 60%);
@@ -171,10 +171,25 @@ $activePage = 'anime';
             $contUrl = animeWatchUrl($malId, $contEp, 1, $contT)
                        . '&from=' . urlencode('/anime-detail.php?mal_id=' . $malId);
           ?>
-          <a class="btn btn-play" href="<?= e($contUrl) ?>">&#9654; Continue Ep <?= $contEp ?></a>
-          <?php if (!$isMovie && $firstEpUrl): ?>
-            <a class="btn btn-info" href="<?= e($firstEpUrl) ?>">&#9654; Ep 1</a>
-          <?php endif; ?>
+          <span id="continue-block" style="display:contents;">
+            <a class="btn btn-play" href="<?= e($contUrl) ?>">&#9654; Continue Ep <?= $contEp ?></a>
+            <?php if (!$isMovie && $firstEpUrl): ?>
+              <a class="btn btn-info" href="<?= e($firstEpUrl) ?>">&#9654; Ep 1</a>
+            <?php endif; ?>
+            <button
+              class="btn btn-remove-progress"
+              id="remove-progress-btn"
+              data-type="anime"
+              data-id="<?= $malId ?>"
+            >&#10005; Remove from Watching</button>
+          </span>
+          <span id="play-block" style="display:none;">
+            <?php if ($firstEpUrl): ?>
+              <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; <?= $isMovie ? 'Watch Movie' : 'Play Episode 1' ?></a>
+            <?php else: ?>
+              <span class="btn btn-info" style="cursor:default;opacity:.5;">&#9888; Stream unavailable</span>
+            <?php endif; ?>
+          </span>
         <?php elseif ($firstEpUrl): ?>
           <a class="btn btn-play" href="<?= e($firstEpUrl) ?>">&#9654; <?= $isMovie ? 'Watch Movie' : 'Play Episode 1' ?></a>
         <?php else: ?>
@@ -301,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 </script>
-<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= filemtime(__DIR__ . '/assets/js/main.js') ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= ASSET_VERSION ?>"></script>
 <script>
 (function () {
   'use strict';
@@ -327,6 +342,28 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('Favorites error:', err);
     } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  const btn = document.getElementById('remove-progress-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      await fetch(BASE_URL + '/api/progress.php', {
+        method : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ content_type: btn.dataset.type, content_id: parseInt(btn.dataset.id, 10) }),
+      });
+      document.getElementById('continue-block').style.display = 'none';
+      document.getElementById('play-block').style.display = '';
+    } catch (err) {
+      console.error('Remove progress error:', err);
       btn.disabled = false;
     }
   });

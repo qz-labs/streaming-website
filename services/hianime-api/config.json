@@ -1,0 +1,9 @@
+{
+  "_comment": "Edit domains here when a site goes down due to DMCA. Restart the service (node server.js) after saving changes.",
+  "v1_base_url": "www.wcoflix.tv",
+  "v2_base_url": "kaido.to",
+  "v3_base_url": "aniplay.lol",
+  "v4_base_url": "9animetv.to",
+  "fallback_1": "megaplay.buzz",
+  "fallback_2": "vidwish.live"
+}

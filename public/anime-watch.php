@@ -72,12 +72,41 @@ foreach ($sequelChain as $i => $s) {
     if ((int)$s['mal_id'] === $malId) { $currentChainIdx = $i; break; }
 }
 
-// ── Stream API URL ────────────────────────────────────────────────────────────
-$streamApiUrl  = BASE_URL . '/stream.php?mal_id=' . $malId . '&episode=' . $episode;
-$consumetReady = CONSUMET_URL !== '';
-$detailUrl     = BASE_URL . '/anime-detail.php?mal_id=' . $malId;
-$backUrl       = $safeFrom !== '' ? BASE_URL . $safeFrom : $detailUrl;
-$today         = date('Y-m-d');
+// ── Should auto-remove from continue watching when near end? ─────────────────
+$isAnimeMovie     = $nextEpisode === null && $episodeCount <= 1;
+$isLastChainEntry = $currentChainIdx >= count($sequelChain) - 1;
+$shouldAutoRemove = $isAnimeMovie || $nextEpisode === null && $isLastChainEntry;
+
+// ── Player URLs ───────────────────────────────────────────────────────────────
+// AniList IDs are more reliable than MAL IDs on dropfile.cc for version
+// disambiguation (e.g. HxH 1999 vs 2011). Use AniList's own GraphQL API
+// to convert MAL ID → AniList ID, fall back to mal-{id} on failure.
+$dropfileIdPrefix = 'mal-' . $malId;
+$alQuery = json_encode([
+    'query'     => 'query($id:Int){Media(idMal:$id,type:ANIME){id}}',
+    'variables' => ['id' => $malId],
+]);
+$alCtx = stream_context_create(['http' => [
+    'method'        => 'POST',
+    'header'        => "Content-Type: application/json\r\n",
+    'content'       => $alQuery,
+    'timeout'       => 4,
+    'ignore_errors' => true,
+]]);
+$alRaw = @file_get_contents('https://graphql.anilist.co', false, $alCtx);
+if ($alRaw !== false) {
+    $alData    = json_decode($alRaw, true);
+    $anilistId = $alData['data']['Media']['id'] ?? null;
+    if ($anilistId) {
+        $dropfileIdPrefix = 'anilist-' . (int)$anilistId;
+    }
+}
+$dropfileSubUrl = 'https://dropfile.cc/player/tv/' . $dropfileIdPrefix . '/1/' . $episode . '?audio=sub&lang=en';
+$dropfileDubUrl = 'https://dropfile.cc/player/tv/' . $dropfileIdPrefix . '/1/' . $episode . '?audio=dub&lang=en';
+
+$detailUrl = BASE_URL . '/anime-detail.php?mal_id=' . $malId;
+$backUrl   = $safeFrom !== '' ? BASE_URL . $safeFrom : $detailUrl;
+$today     = date('Y-m-d');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -86,8 +115,8 @@ $today         = date('Y-m-d');
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($title) ?> &ndash; Episode <?= $episode ?> &ndash; <?= e(SITE_NAME) ?></title>
   <?php require __DIR__ . '/partials/fonts.php'; ?>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/player.css?v=<?= filemtime(__DIR__ . '/assets/css/player.css') ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= ASSET_VERSION ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/player.css?v=<?= ASSET_VERSION ?>">
 </head>
 <body>
 
@@ -122,78 +151,21 @@ $today         = date('Y-m-d');
       </button>
     </div>
 
-    <!-- Video player (native <video> with custom controls) -->
-    <div class="player-frame-wrap" id="player-wrap">
-
-      <div class="player-overlay" id="player-overlay">
-        <?php if (!$consumetReady): ?>
-          <div class="not-configured">
-            <strong style="color:#E50914;font-size:1rem;">Consumet API not configured</strong><br><br>
-            Deploy a free Consumet instance on Vercel, then add<br>
-            <code>CONSUMET_URL=https://your-app.vercel.app</code><br>
-            to your <code>.env</code> file.
-          </div>
-        <?php else: ?>
-          <div class="spinner"></div>
-          <span id="overlay-text">Resolving stream&hellip;</span>
-        <?php endif; ?>
+    <!-- Iframe player -->
+    <div class="player-frame-wrap" id="player-frame-wrap">
+      <div class="player-loading" id="player-loading">
+        <div class="spinner"></div>&nbsp;Loading&hellip;
       </div>
-
-      <video id="anime-video" playsinline muted></video>
-
-      <div class="center-play" id="center-play">
-        <svg id="center-play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-      </div>
-
-      <div class="unmute-prompt" id="unmute-prompt" style="display:none">
-        <button class="unmute-btn" id="unmute-btn">&#128266; Tap to unmute</button>
-      </div>
-
-      <div class="seek-indicator seek-indicator--left"  id="seek-left"  aria-hidden="true">&#9664;&#9664; 10s</div>
-      <div class="seek-indicator seek-indicator--right" id="seek-right" aria-hidden="true">10s &#9654;&#9654;</div>
-
-      <!-- Custom controls overlay -->
-      <div class="custom-controls" id="custom-controls">
-        <div class="progress-row">
-          <div class="progress-wrap" id="progress-wrap">
-            <div class="progress-buf"   id="progress-buf"   style="width:0%"></div>
-            <div class="progress-fill"  id="progress-fill"  style="width:0%"></div>
-            <div class="progress-thumb" id="progress-thumb" style="left:0%"></div>
-          </div>
-          <span class="time-display" id="time-display">0:00 / 0:00</span>
-        </div>
-        <div class="controls-row">
-          <button class="ctrl-btn" id="btn-play" title="Play / Pause (Space)">
-            <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button class="ctrl-btn" id="btn-back" title="Back 10s">
-            <svg viewBox="0 0 24 24"><path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="8.5" y="15.5" font-size="5" font-family="sans-serif" fill="currentColor">10</text></svg>
-          </button>
-          <button class="ctrl-btn" id="btn-fwd" title="Forward 10s">
-            <svg viewBox="0 0 24 24"><path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="8.5" y="15.5" font-size="5" font-family="sans-serif" fill="currentColor">10</text></svg>
-          </button>
-          <div class="volume-group">
-            <button class="ctrl-btn" id="btn-mute" title="Mute / Unmute (M)">
-              <svg id="vol-icon" viewBox="0 0 24 24"><path id="vol-path" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-            </button>
-            <div class="volume-slider-wrap">
-              <input class="volume-slider" id="volume-slider" type="range" min="0" max="1" step="0.02" value="1">
-            </div>
-          </div>
-          <div class="ctrl-spacer"></div>
-          <div class="sub-group" id="sub-group">
-            <button class="ctrl-btn" id="btn-subs" title="Subtitles">
-              <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h2v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>
-            </button>
-            <div class="sub-dropdown" id="sub-dropdown"></div>
-          </div>
-          <button class="ctrl-btn" id="btn-fs" title="Fullscreen (F)">
-            <svg id="fs-icon" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-          </button>
-        </div>
-      </div>
-
-    </div><!-- /player-frame-wrap -->
+      <iframe
+        id="anime-iframe"
+        src="<?= e($dropfileSubUrl) ?>"
+        frameborder="0"
+        allowfullscreen
+        referrerpolicy="origin"
+        allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *"
+        scrolling="no"
+      ></iframe>
+    </div>
 
     <!-- Controls bar below video -->
     <div class="watch-controls-bar">
@@ -205,9 +177,7 @@ $today         = date('Y-m-d');
       </div>
 
       <!-- Status -->
-      <div class="player-status" id="player-status">
-        <?= $consumetReady ? 'Resolving stream&hellip;' : 'Consumet not configured' ?>
-      </div>
+      <div class="player-status" id="player-status">Loading stream&hellip;</div>
 
       <!-- Episode nav pushed to right -->
       <nav class="ep-nav">
@@ -299,435 +269,131 @@ $today         = date('Y-m-d');
 
 </div><!-- /watch-layout -->
 
-<!-- HLS.js -->
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+<script>
+// ── Resume-position toast ─────────────────────────────────────────────────────
+(function () {
+  'use strict';
+  const RESUME_AT = <?= (int)$startTime ?>;
+  if (RESUME_AT > 0) {
+    const mins = Math.floor(RESUME_AT / 60);
+    const secs = String(RESUME_AT % 60).padStart(2, '0');
+    const el   = document.createElement('div');
+    el.className   = 'resume-toast';
+    el.textContent = 'Resuming from ' + mins + ':' + secs;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+})();
+</script>
 
 <script>
 (function () {
   'use strict';
 
-  const MAL_ID     = <?= $malId ?>;
-  const EPISODE    = <?= $episode ?>;
-  const START_TIME = <?= (int)$startTime ?>;
-  const STREAM_API = <?= json_encode($streamApiUrl) ?>;
-  const READY      = <?= $consumetReady ? 'true' : 'false' ?>;
+  const SUB_URL  = <?= json_encode($dropfileSubUrl) ?>;
+  const DUB_URL  = <?= json_encode($dropfileDubUrl) ?>;
+  const EPISODE  = <?= $episode ?>;
 
-  if (!READY) return;
+  const iframe   = document.getElementById('anime-iframe');
+  const loading  = document.getElementById('player-loading');
+  const statusEl = document.getElementById('player-status');
+  const langBtns = Array.from(document.querySelectorAll('.lang-btn'));
 
-  const video        = document.getElementById('anime-video');
-  const wrap         = document.getElementById('player-wrap');
-  const overlay      = document.getElementById('player-overlay');
-  const overlayText  = document.getElementById('overlay-text');
-  const statusEl     = document.getElementById('player-status');
-  const langBtns     = Array.from(document.querySelectorAll('.lang-btn'));
-
-  const btnPlay      = document.getElementById('btn-play');
-  const playIcon     = document.getElementById('play-icon');
-  const btnBack      = document.getElementById('btn-back');
-  const btnFwd       = document.getElementById('btn-fwd');
-  const btnMute      = document.getElementById('btn-mute');
-  const volIcon      = document.getElementById('vol-icon');
-  const volSlider    = document.getElementById('volume-slider');
-  const progressWrap = document.getElementById('progress-wrap');
-  const progressFill = document.getElementById('progress-fill');
-  const progressBuf  = document.getElementById('progress-buf');
-  const progressThumb= document.getElementById('progress-thumb');
-  const timeDisplay  = document.getElementById('time-display');
-  const btnFs        = document.getElementById('btn-fs');
-  const fsIcon       = document.getElementById('fs-icon');
-  const centerPlay   = document.getElementById('center-play');
-  const centerIcon   = document.getElementById('center-play-icon');
-  const btnSubs      = document.getElementById('btn-subs');
-  const subDropdown  = document.getElementById('sub-dropdown');
-  const unmutePrompt = document.getElementById('unmute-prompt');
-  const unmuteBtn    = document.getElementById('unmute-btn');
-
-  const isIOS = !document.fullscreenEnabled &&
-                typeof video.webkitEnterFullscreen === 'function';
-
-  if (unmuteBtn) {
-    unmuteBtn.addEventListener('click', () => {
-      video.muted = false;
-      updateVolIcon();
-      if (unmutePrompt) unmutePrompt.style.display = 'none';
-    });
-  }
-
-  let hls         = null;
   let currentMode = 'sub';
 
   const PREF_KEY = 'anime_lang_pref';
   function savePref(mode) { try { localStorage.setItem(PREF_KEY, mode); } catch(_) {} }
   function loadPref()     { try { return localStorage.getItem(PREF_KEY) || 'sub'; } catch(_) { return 'sub'; } }
 
-  // ── Controls visibility ────────────────────────────────────────────────────
-  let hideTimer = null;
-  function showControls() {
-    wrap.classList.add('controls-visible');
-    clearTimeout(hideTimer);
-    if (!video.paused) {
-      hideTimer = setTimeout(() => wrap.classList.remove('controls-visible'), 3000);
-    }
-  }
-
-  // ── Double-tap to seek ─────────────────────────────────────────────────────
-  const seekLeftEl  = document.getElementById('seek-left');
-  const seekRightEl = document.getElementById('seek-right');
-  let lastTapTime   = 0;
-
-  function flashSeekIndicator(el) {
-    if (!el) return;
-    el.classList.remove('flash');
-    void el.offsetWidth;
-    el.classList.add('flash');
-    setTimeout(() => el.classList.remove('flash'), 600);
-  }
-
-  wrap.addEventListener('mousemove', showControls);
-  wrap.addEventListener('touchstart', (e) => {
-    const now    = Date.now();
-    const target = e.target;
-
-    if (target.closest('button, a, select, input, .sub-dropdown')) {
-      showControls();
-      return;
-    }
-
-    const dt    = now - lastTapTime;
-    lastTapTime = now;
-
-    if (dt < 300 && dt > 0) {
-      const rect = wrap.getBoundingClientRect();
-      const tapX = e.touches[0].clientX - rect.left;
-      if (tapX < rect.width / 2) {
-        video.currentTime = Math.max(0, video.currentTime - 10);
-        flashSeekIndicator(seekLeftEl);
-      } else {
-        video.currentTime += 10;
-        flashSeekIndicator(seekRightEl);
-      }
-      lastTapTime = 0;
-      showControls();
-      return;
-    }
-
-    if (wrap.classList.contains('controls-visible')) {
-      togglePlay();
-    }
-    showControls();
-  }, { passive: true });
-
-  wrap.addEventListener('mouseleave', () => {
-    if (!video.paused) {
-      clearTimeout(hideTimer);
-      wrap.classList.remove('controls-visible');
-    }
-  });
-
-  showControls();
-
-  function fmt(s) {
-    if (!isFinite(s)) return '0:00';
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = Math.floor(s % 60);
-    return (h ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
-  }
-
-  const PLAY_PATH  = 'M8 5v14l11-7z';
-  const PAUSE_PATH = 'M6 19h4V5H6v14zm8-14v14h4V5h-4z';
-
-  function updatePlayIcon() {
-    const path = video.paused ? PLAY_PATH : PAUSE_PATH;
-    playIcon.innerHTML   = '<path d="' + path + '"/>';
-    centerIcon.innerHTML = '<path d="' + path + '"/>';
-  }
-
-  function flashCenter() {
-    centerPlay.classList.remove('flash');
-    void centerPlay.offsetWidth;
-    centerPlay.classList.add('flash');
-    setTimeout(() => centerPlay.classList.remove('flash'), 400);
-  }
-
-  function togglePlay() {
-    if (video.paused) { video.play(); } else { video.pause(); }
-    flashCenter();
-  }
-
-  btnPlay.addEventListener('click', togglePlay);
-  video.addEventListener('click', togglePlay);
-  video.addEventListener('play',  updatePlayIcon);
-  video.addEventListener('pause', () => { updatePlayIcon(); showControls(); });
-
-  function updateProgress() {
-    if (!isFinite(video.duration)) return;
-    const pct = (video.currentTime / video.duration) * 100;
-    progressFill.style.width = pct + '%';
-    progressThumb.style.left = pct + '%';
-    timeDisplay.textContent  = fmt(video.currentTime) + ' / ' + fmt(video.duration);
-    if (video.buffered.length) {
-      const bufEnd = video.buffered.end(video.buffered.length - 1);
-      progressBuf.style.width = (bufEnd / video.duration * 100) + '%';
-    }
-  }
-
-  video.addEventListener('timeupdate', updateProgress);
-  video.addEventListener('progress',   updateProgress);
-
-  function seekFromEvent(e) {
-    if (!isFinite(video.duration)) return;
-    const rect = progressWrap.getBoundingClientRect();
-    const x    = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    video.currentTime = (x / rect.width) * video.duration;
-  }
-
-  let seeking = false;
-  progressWrap.addEventListener('mousedown',  (e) => { seeking = true; seekFromEvent(e); });
-  document.addEventListener('mousemove',      (e) => { if (seeking) seekFromEvent(e); });
-  document.addEventListener('mouseup',        ()  => { seeking = false; });
-  progressWrap.addEventListener('touchstart', (e) => { seeking = true; seekFromEvent(e.touches[0]); e.preventDefault(); }, { passive: false });
-  progressWrap.addEventListener('touchmove',  (e) => { if (seeking) { seekFromEvent(e.touches[0]); e.preventDefault(); } }, { passive: false });
-  progressWrap.addEventListener('touchend',   ()  => { seeking = false; });
-
-  btnBack.addEventListener('click', () => { video.currentTime = Math.max(0, video.currentTime - 10); });
-  btnFwd.addEventListener('click',  () => { video.currentTime += 10; });
-
-  const VOL_HIGH = 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z';
-  const VOL_MUTE = 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z';
-  const VOL_LOW  = 'M18.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z';
-
-  function updateVolIcon() {
-    const v    = video.volume;
-    const muted= video.muted || v === 0;
-    volIcon.innerHTML = '<path d="' + (muted ? VOL_MUTE : v < 0.5 ? VOL_LOW : VOL_HIGH) + '"/>';
-    volSlider.value   = muted ? 0 : v;
-  }
-
-  btnMute.addEventListener('click', () => { video.muted = !video.muted; updateVolIcon(); });
-  volSlider.addEventListener('input', () => {
-    video.volume = parseFloat(volSlider.value);
-    video.muted  = video.volume === 0;
-    updateVolIcon();
-  });
-  video.addEventListener('volumechange', updateVolIcon);
-
-  const FS_ENTER = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
-  const FS_EXIT  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
-
-  function updateFsIcon() {
-    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement ||
-                    (isIOS && video.webkitDisplayingFullscreen));
-    fsIcon.innerHTML = '<path d="' + (inFs ? FS_EXIT : FS_ENTER) + '"/>';
-    const topbarIcon = document.querySelector('#topbar-fs-icon');
-    if (topbarIcon) topbarIcon.innerHTML = '<path d="' + (inFs ? FS_EXIT : FS_ENTER) + '"/>';
-    const topbarBtn = document.getElementById('topbar-fs-btn');
-    if (topbarBtn) topbarBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
-  }
-
-  function toggleFullscreen() {
-    if (isIOS) {
-      if (video.webkitDisplayingFullscreen) {
-        video.webkitExitFullscreen();
-      } else {
-        video.webkitEnterFullscreen();
-      }
-      return;
-    }
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      const req = wrap.requestFullscreen || wrap.webkitRequestFullscreen;
-      if (req) req.call(wrap).catch(() => {});
-    } else {
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    }
-  }
-
-  btnFs.addEventListener('click', toggleFullscreen);
-  const topbarFsBtn = document.getElementById('topbar-fs-btn');
-  if (topbarFsBtn) topbarFsBtn.addEventListener('click', toggleFullscreen);
-
-  document.addEventListener('fullscreenchange',       updateFsIcon);
-  document.addEventListener('webkitfullscreenchange', updateFsIcon);
-  video.addEventListener('webkitbeginfullscreen', updateFsIcon);
-  video.addEventListener('webkitendfullscreen',   updateFsIcon);
-
-  document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-    switch (e.code) {
-      case 'Space':      e.preventDefault(); togglePlay(); break;
-      case 'ArrowLeft':  video.currentTime = Math.max(0, video.currentTime - 10); break;
-      case 'ArrowRight': video.currentTime += 10; break;
-      case 'ArrowUp':    video.volume = Math.min(1, video.volume + 0.1); updateVolIcon(); break;
-      case 'ArrowDown':  video.volume = Math.max(0, video.volume - 0.1); updateVolIcon(); break;
-      case 'KeyM':       video.muted = !video.muted; updateVolIcon(); break;
-      case 'KeyF':       toggleFullscreen(); break;
-    }
-    showControls();
-  });
-
-  let availableSubtitles = [];
-  let cachedSubtitles    = [];
-
-  function buildSubMenu() {
-    subDropdown.innerHTML = '';
-    if (!availableSubtitles.length) {
-      subDropdown.innerHTML = '<button disabled style="opacity:.5">No subtitles</button>';
-      return;
-    }
-    const offBtn = document.createElement('button');
-    offBtn.textContent = 'Off';
-    offBtn.addEventListener('click', () => {
-      Array.from(video.textTracks).forEach(t => t.mode = 'hidden');
-      subDropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-      offBtn.classList.add('active');
-      subDropdown.classList.remove('open');
-    });
-    subDropdown.appendChild(offBtn);
-
-    availableSubtitles.forEach((sub, i) => {
-      const label = sub.lang || sub.label || 'Track ' + (i + 1);
-      const btn   = document.createElement('button');
-      btn.textContent = label;
-      if (currentMode === 'sub') btn.classList.add('active');
-      btn.addEventListener('click', () => {
-        Array.from(video.textTracks).forEach((t, ti) => { t.mode = ti === i ? 'showing' : 'hidden'; });
-        subDropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        subDropdown.classList.remove('open');
-      });
-      subDropdown.appendChild(btn);
-    });
-  }
-
-  btnSubs.addEventListener('click', (e) => { e.stopPropagation(); subDropdown.classList.toggle('open'); });
-  document.addEventListener('click', () => subDropdown.classList.remove('open'));
-
-  function showOverlay(text) { overlayText.textContent = text || 'Loading\u2026'; overlay.classList.remove('hidden'); }
-  function hideOverlay()     { overlay.classList.add('hidden'); }
-  function escHtml(s)        { const t = document.createElement('span'); t.textContent = String(s); return t.innerHTML; }
-  function showError(msg)    {
-    overlay.classList.remove('hidden');
-    const div = document.createElement('div');
-    div.className = 'error-msg';
-    div.innerHTML = msg;
-    overlay.replaceChildren(div);
-  }
-
-  function setActiveMode(mode) {
+  function setMode(mode) {
     currentMode = mode;
-    langBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+    langBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    savePref(mode);
+    loading.classList.remove('hidden');
+    iframe.src = 'about:blank';
+    setTimeout(() => {
+      iframe.src = mode === 'dub' ? DUB_URL : SUB_URL;
+      statusEl.textContent = 'Episode ' + EPISODE + ' · ' + mode.toUpperCase();
+    }, 50);
   }
 
-  function applySubtitleMode() {
-    const tracks = Array.from(video.textTracks);
-    if (!tracks.length) return;
-    if (currentMode === 'dub') { tracks.forEach(t => t.mode = 'hidden'); return; }
-    const preferred = tracks.find(t => t.language.startsWith('en') || t.label.toLowerCase().includes('english'));
-    const target    = preferred || tracks[0];
-    tracks.forEach(t => t.mode = t === target ? 'showing' : 'hidden');
-    const items = Array.from(subDropdown.querySelectorAll('button'));
-    items.forEach(b => b.classList.remove('active'));
-    const match = items.find(b => b.textContent.trim().toLowerCase() === target.label.toLowerCase());
-    if (match) match.classList.add('active');
-  }
-
-  function loadStream(m3u8Url, refererHeader, subtitles, seekTo = 0) {
-    if (hls) { hls.destroy(); hls = null; }
-
-    const filtered = (subtitles || []).filter(s => {
-      const l = (s.lang || s.label || '').toLowerCase();
-      return !l.includes('thumbnail');
-    });
-
-    if (filtered.length > 0) { availableSubtitles = filtered; cachedSubtitles = filtered; }
-    else                     { availableSubtitles = cachedSubtitles; }
-
-    function onReady() {
-      hideOverlay();
-      if (unmutePrompt) unmutePrompt.style.display = 'none';
-      if (seekTo > 0) video.currentTime = seekTo;
-      video.muted = true;
-      video.play().then(() => {
-        video.muted = false;
-        updateVolIcon();
-        setTimeout(() => {
-          if (video.muted && unmutePrompt) unmutePrompt.style.display = 'block';
-        }, 200);
-      }).catch(() => { video.muted = false; updateVolIcon(); });
-      buildSubMenu();
-      setTimeout(applySubtitleMode, 300);
-    }
-
-    if (Hls.isSupported()) {
-      hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 });
-      hls.loadSource(m3u8Url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, onReady);
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) showError('Stream error: ' + (data.details || 'unknown') + '<br><small>Try switching Sub / Dub or go back.</small>');
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = m3u8Url;
-      video.addEventListener('loadedmetadata', onReady, { once: true });
-    } else {
-      showError('Your browser does not support HLS streaming.');
-      return;
-    }
-
-    availableSubtitles.forEach((sub, i) => {
-      const lang  = (sub.lang || sub.label || 'Unknown').toLowerCase();
-      const track = document.createElement('track');
-      track.kind    = 'subtitles';
-      track.label   = sub.lang || sub.label || 'Unknown';
-      track.srclang = lang.substring(0, 2);
-      track.src     = sub.url;
-      video.appendChild(track);
-    });
-  }
-
-  async function fetchAndLoad(category, seekTo = 0) {
-    if (unmutePrompt) unmutePrompt.style.display = 'none';
-    setActiveMode(category);
-    savePref(category);
-    showOverlay('Resolving ' + category.toUpperCase() + ' stream\u2026');
-    statusEl.textContent = 'Fetching stream for episode ' + EPISODE + ' (' + category.toUpperCase() + ')\u2026';
-    Array.from(video.querySelectorAll('track')).forEach(t => t.remove());
-
-    try {
-      const res  = await fetch(STREAM_API + '&category=' + encodeURIComponent(category));
-      const data = await res.json();
-
-      if (data.error) {
-        if (category === 'sub') {
-          showError('<strong>Stream not found</strong><br>Could not find episode ' + EPISODE + '.<br><small>Try again later or go back.</small>');
-          statusEl.textContent = 'Stream not found.';
-        } else {
-          statusEl.textContent = 'Dub not available, falling back to Sub\u2026';
-          fetchAndLoad('sub', seekTo);
-        }
-        return;
-      }
-
-      statusEl.textContent = 'Playing Episode ' + EPISODE + ' \u00b7 ' + data.category.toUpperCase();
-      loadStream(data.m3u8, data.headers?.Referer || null, data.subtitles || [], seekTo);
-
-    } catch (err) {
-      showError('Network error: could not reach the stream API.<br><small>' + escHtml(err.message) + '</small>');
-      statusEl.textContent = 'Error reaching stream API.';
-    }
-  }
+  iframe.addEventListener('load', () => loading.classList.add('hidden'));
 
   langBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const newMode = btn.dataset.mode;
-      if (newMode === currentMode) return;
-      fetchAndLoad(newMode, video.currentTime || 0);
+      const mode = btn.dataset.mode;
+      if (mode !== currentMode) setMode(mode);
     });
   });
 
-  fetchAndLoad(loadPref(), START_TIME);
+  // ── Apply saved language pref ──────────────────────────────────────────────
+  const savedPref = loadPref();
+  if (savedPref === 'dub') {
+    setMode('dub');
+  } else {
+    statusEl.textContent = 'Episode ' + EPISODE + ' · SUB';
+    langBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === 'sub'));
+  }
 
-  // ── Progress tracking ──────────────────────────────────────────────────────
+  // ── Fullscreen ─────────────────────────────────────────────────────────────
+  const frameWrap   = document.getElementById('player-frame-wrap');
+  const topbarFsBtn = document.getElementById('topbar-fs-btn');
+
+  if (topbarFsBtn && frameWrap) {
+    topbarFsBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const el  = iframe || frameWrap;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) {
+          req.call(el).catch(() => {
+            const fb = frameWrap.requestFullscreen || frameWrap.webkitRequestFullscreen;
+            if (fb) fb.call(frameWrap).catch(() => {});
+          });
+        }
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    });
+
+    const FS_ENTER = 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z';
+    const FS_EXIT  = 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z';
+
+    function updateFsIcon() {
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      const icon = topbarFsBtn.querySelector('svg');
+      if (icon) icon.innerHTML = '<path d="' + (inFs ? FS_EXIT : FS_ENTER) + '"/>';
+      topbarFsBtn.title = inFs ? 'Exit fullscreen' : 'Fullscreen';
+    }
+    document.addEventListener('fullscreenchange',       updateFsIcon);
+    document.addEventListener('webkitfullscreenchange', updateFsIcon);
+  }
+
+  // ── Season selector ────────────────────────────────────────────────────────
+  const seasonSel = document.getElementById('ep-panel-season');
+  if (seasonSel) {
+    seasonSel.addEventListener('change', () => { if (seasonSel.value) window.location.href = seasonSel.value; });
+  }
+
+  // ── Mobile episode sidebar collapse ───────────────────────────────────────
+  const sidebar   = document.getElementById('ep-sidebar');
+  const toggleBtn = document.getElementById('ep-sidebar-toggle');
+  if (sidebar && toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const collapsed = sidebar.classList.toggle('collapsed');
+      toggleBtn.innerHTML = collapsed ? '&#9650;' : '&#9660;';
+    });
+    const cur = document.querySelector('.ep-panel__item--current');
+    if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100);
+  }
+})();
+</script>
+
+<script>
+// ── Progress tracking for cross-origin iframe ────────────────────────────────
+(function () {
+  'use strict';
+
+  const SHOULD_AUTO_REMOVE = <?= $shouldAutoRemove ? 'true' : 'false' ?>;
   const PROGRESS_META = <?= json_encode([
     'content_type'  => 'anime',
     'content_id'    => $malId,
@@ -738,13 +404,16 @@ $today         = date('Y-m-d');
     'base_url'      => BASE_URL,
   ]) ?>;
 
-  let progressTimer = null;
+  let visibleStart   = Date.now();
+  let accumulatedSec = 0;
+
+  function currentTotal() {
+    return accumulatedSec + Math.round((Date.now() - visibleStart) / 1000);
+  }
 
   function saveProgress(isFinal) {
-    if (!isFinite(video.duration) || video.duration <= 0) return;
-    const pct = video.currentTime / video.duration;
-    // Skip saving if before 5% or past 95% (not started / already finished)
-    if (pct < 0.05 || pct > 0.95) return;
+    const totalSec = currentTotal();
+    if (totalSec < 10) return;
 
     const epTitleEl = document.querySelector('.ep-panel__item--current .ep-panel__title');
     const payload = JSON.stringify({
@@ -755,8 +424,8 @@ $today         = date('Y-m-d');
       season           : PROGRESS_META.season,
       episode          : PROGRESS_META.episode,
       episode_title    : epTitleEl ? epTitleEl.textContent.trim() : '',
-      progress_seconds : Math.round(video.currentTime),
-      duration_seconds : Math.round(video.duration),
+      progress_seconds : totalSec,
+      duration_seconds : 0,
     });
 
     if (isFinal) {
@@ -770,36 +439,36 @@ $today         = date('Y-m-d');
     }
   }
 
-  video.addEventListener('play', () => {
-    clearInterval(progressTimer);
-    progressTimer = setInterval(() => saveProgress(false), 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      accumulatedSec += Math.round((Date.now() - visibleStart) / 1000);
+      saveProgress(false);
+    } else {
+      visibleStart = Date.now();
+    }
   });
-  video.addEventListener('pause', () => clearInterval(progressTimer));
-  video.addEventListener('ended', () => clearInterval(progressTimer));
+
+  setInterval(() => saveProgress(false), 30000);
   window.addEventListener('pagehide', () => saveProgress(true));
-})();
-</script>
 
-<script>
-(function () {
-  'use strict';
-  // Season selector
-  const seasonSel = document.getElementById('ep-panel-season');
-  if (seasonSel) {
-    seasonSel.addEventListener('change', () => { if (seasonSel.value) window.location.href = seasonSel.value; });
-  }
-
-  // Mobile episode sidebar collapse
-  const sidebar   = document.getElementById('ep-sidebar');
-  const toggleBtn = document.getElementById('ep-sidebar-toggle');
-  if (sidebar && toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      const collapsed = sidebar.classList.toggle('collapsed');
-      toggleBtn.innerHTML = collapsed ? '&#9650;' : '&#9660;';
-    });
-    // Scroll to current episode
-    const cur = document.querySelector('.ep-panel__item--current');
-    if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100);
+  // Auto-remove from continue watching after enough time passes
+  // (for iframe we use a timer since we can't read video.currentTime)
+  if (SHOULD_AUTO_REMOVE) {
+    // Assume ~24 min episode; remove from continue-watching after 22 min visible
+    const TYPICAL_EP_SEC = 22 * 60;
+    const checkInterval  = setInterval(() => {
+      if (currentTotal() >= TYPICAL_EP_SEC) {
+        clearInterval(checkInterval);
+        fetch(PROGRESS_META.base_url + '/api/progress.php', {
+          method : 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({
+            content_type: PROGRESS_META.content_type,
+            content_id  : PROGRESS_META.content_id,
+          }),
+        }).catch(() => {});
+      }
+    }, 60000);
   }
 })();
 </script>

@@ -23,6 +23,27 @@ class ConsumetApi
         $this->base = CONSUMET_URL;
     }
 
+    private function normalizeTitle(string $title): string
+    {
+        $title = mb_strtolower($title, 'UTF-8');
+        $title = preg_replace('/[^a-z0-9]+/i', ' ', $title) ?? $title;
+        return trim(preg_replace('/\s+/', ' ', $title) ?? $title);
+    }
+
+    private function resultItems(array $data): array
+    {
+        if (isset($data['results']['data']) && is_array($data['results']['data'])) {
+            return $data['results']['data'];
+        }
+        if (isset($data['results']) && is_array($data['results'])) {
+            return $data['results'];
+        }
+        if (isset($data['data']) && is_array($data['data'])) {
+            return $data['data'];
+        }
+        return is_array($data) ? $data : [];
+    }
+
     // ── Internal HTTP ─────────────────────────────────────────────────────────
 
     private function fetch(string $path, array $params = []): array
@@ -75,13 +96,22 @@ class ConsumetApi
     public function search(string $query): array
     {
         $data = $this->cachedFetch('/api/search', ['keyword' => $query]);
-        return $data['results']['data'] ?? [];
+        return $this->resultItems($data);
     }
 
     public function animeEpisodes(string $hiAnimeId): array
     {
         $data = $this->cachedFetch('/api/episodes/' . rawurlencode($hiAnimeId));
-        return $data['results'] ?? [];
+        if (isset($data['results']) && is_array($data['results'])) {
+            return $data['results'];
+        }
+        if (isset($data['data']) && is_array($data['data'])) {
+            return $data['data'];
+        }
+        if (isset($data['episodes']) && is_array($data['episodes'])) {
+            return ['episodes' => $data['episodes']];
+        }
+        return [];
     }
 
     public function episodeSources(string $episodeId, string $category = 'sub', string $server = 'HD-1', bool $fallback = false): array
@@ -92,7 +122,13 @@ class ConsumetApi
             'server' => $server,
             'type'   => $category,
         ]);
-        return $data['results'] ?? [];
+        if (isset($data['results']) && is_array($data['results'])) {
+            return $data['results'];
+        }
+        if (isset($data['data']) && is_array($data['data'])) {
+            return $data['data'];
+        }
+        return $data;
     }
 
     /**
@@ -113,6 +149,7 @@ class ConsumetApi
     public function findAnimeId(string $titleEnglish, string $titleJapanese = '', int $year = 0): ?string
     {
         $englishLower = strtolower($titleEnglish);
+        $englishNormalized = $this->normalizeTitle($titleEnglish);
         $yearStr      = $year > 0 ? (string)$year : '';
         $skipWords    = ['ova', 'special', 'movie', 'film', 'greed island', 'original video'];
 
@@ -127,7 +164,8 @@ class ConsumetApi
             $jpLower = strtolower($titleJapanese);
             $results = $this->search($titleJapanese);
             foreach ($results as $result) {
-                if (strtolower($result['title'] ?? '') === $jpLower) {
+                $resultTitle = strtolower($result['title'] ?? '');
+                if ($resultTitle === $jpLower || $this->normalizeTitle($result['title'] ?? '') === $this->normalizeTitle($titleJapanese)) {
                     return $result['id'] ?? null;
                 }
             }
@@ -140,7 +178,8 @@ class ConsumetApi
             // Exact match on year-tagged title
             $jpLower = strtolower($titleJapanese);
             foreach ($results as $result) {
-                if (strtolower($result['title'] ?? '') === $jpLower) {
+                $resultTitle = strtolower($result['title'] ?? '');
+                if ($resultTitle === $jpLower || $this->normalizeTitle($result['title'] ?? '') === $this->normalizeTitle($titleJapanese)) {
                     return $result['id'] ?? null;
                 }
             }
@@ -188,7 +227,8 @@ class ConsumetApi
 
         // Exact English title match (year-agnostic)
         foreach ($results as $result) {
-            if (strtolower($result['title'] ?? '') === $englishLower) {
+            $resultTitle = strtolower($result['title'] ?? '');
+            if ($resultTitle === $englishLower || $this->normalizeTitle($result['title'] ?? '') === $englishNormalized) {
                 return $result['id'] ?? null;
             }
         }
@@ -221,7 +261,7 @@ class ConsumetApi
         // Match by episode_no value
         $targetEpisode = null;
         foreach ($episodes as $ep) {
-            if ((int)($ep['episode_no'] ?? 0) === $episodeNo) {
+            if ((int)($ep['episode_no'] ?? $ep['number'] ?? 0) === $episodeNo) {
                 $targetEpisode = $ep;
                 break;
             }
@@ -234,7 +274,7 @@ class ConsumetApi
 
         if (!$targetEpisode) return null;
 
-        $episodeId = $targetEpisode['id'] ?? null;
+        $episodeId = $targetEpisode['id'] ?? $targetEpisode['episodeId'] ?? null;
         if (!$episodeId) return null;
 
         // Try HD-1 → HD-2 → fallback server
@@ -243,10 +283,19 @@ class ConsumetApi
             $sources = $this->episodeSources($episodeId, $category, 'HD-2');
         }
         if (empty($sources['streamingLink'])) {
+            $sources = $this->episodeSources($episodeId, $category, 'HD-3');
+        }
+        if (empty($sources['streamingLink'])) {
             $sources = $this->episodeSources($episodeId, $category, 'HD-1', true);
         }
 
-        $m3u8Url = $sources['streamingLink'][0]['link'] ?? null;
+        $m3u8Url = $sources['streamingLink'][0]['link']
+            ?? $sources['streamingLink']['link']
+            ?? $sources['sources'][0]['url']
+            ?? $sources['sources'][0]['file']
+            ?? $sources['sources']['url']
+            ?? $sources['file']
+            ?? null;
         if (!$m3u8Url) return null;
 
         $subtitles = [];
@@ -262,7 +311,7 @@ class ConsumetApi
 
         return [
             'm3u8'      => $m3u8Url,
-            'headers'   => ['Referer' => 'https://megacloud.club/'],
+            'headers'   => $sources['headers'] ?? ['Referer' => 'https://megacloud.club/'],
             'subtitles' => $subtitles,
         ];
     }

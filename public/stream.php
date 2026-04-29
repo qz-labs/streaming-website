@@ -96,6 +96,7 @@ if (M3U8_PROXY_URL !== '') {
 
 echo json_encode([
     'm3u8'      => $m3u8Url,
+    'headers'   => $stream['headers'] ?? [],
     'subtitles' => $subtitles,
     'category'  => $category,
 ]);

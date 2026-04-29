@@ -1,8 +1,6 @@
 import https from "node:https";
 import http from "node:http";
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 const httpUtils = {
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -26,6 +24,15 @@ const ALLOWED_DOMAINS = [
     'fastly.net',
     'cloudfront.net',
     'r2.cloudflarestorage.com',
+    // vidsrc stream CDN hosts
+    'whisperingauroras.com',
+    'rcp.vidsrc.net',
+    'vidplay.online',
+    'vidplay.site',
+    'vidsrc.stream',
+    'vidcloud9.com',
+    'filemoon.sx',
+    'filemoon.to',
 ];
 
 // Suffix-match helper — allows subdomains of known CDN hosts
@@ -42,6 +49,14 @@ const ALLOWED_SUFFIXES = [
     '.cloudfront.net',
     '.fastly.net',
     '.r2.dev',
+    // vidsrc CDN suffixes
+    '.whisperingauroras.com',
+    '.vidplay.online',
+    '.vidplay.site',
+    '.vidsrc.stream',
+    '.vidcloud9.com',
+    '.filemoon.sx',
+    '.filemoon.to',
 ];
 
 function isAllowedHost(hostname) {
@@ -71,16 +86,10 @@ function setCachedM3u8(key, value) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
 const PORT = 3030;
 
 app.listen(PORT, () => {
     console.log("Server Listening on PORT:", PORT);
-});
-
-app.get('/', (_req, res) => {
-    res.sendFile(path.join(__dirname, 'html', 'playground.html'));
 });
 
 app.get("/m3u8-proxy", async (req, res) => {

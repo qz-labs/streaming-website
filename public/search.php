@@ -58,7 +58,7 @@ $activePage = '';
     <?= $q ? 'Search: ' . e($q) . ' &ndash; ' : 'Search &ndash; ' ?><?= e(SITE_NAME) ?>
   </title>
   <?php require __DIR__ . '/partials/fonts.php'; ?>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= ASSET_VERSION ?>">
 </head>
 <body>
 
@@ -213,6 +213,6 @@ $activePage = '';
 <?php require __DIR__ . '/partials/footer.php'; ?>
 
 <script>const BASE_URL = '<?= BASE_URL ?>';</script>
-<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= filemtime(__DIR__ . '/assets/js/main.js') ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= ASSET_VERSION ?>"></script>
 </body>
 </html>

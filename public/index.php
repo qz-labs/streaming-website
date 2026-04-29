@@ -81,7 +81,7 @@ $activePage = 'home';
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e(SITE_NAME) ?> &ndash; Watch Free Movies &amp; TV</title>
   <?php require __DIR__ . '/partials/fonts.php'; ?>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= ASSET_VERSION ?>">
 </head>
 <body>
 
@@ -146,6 +146,6 @@ $activePage = 'home';
 <?php require __DIR__ . '/partials/footer.php'; ?>
 
 <script>const BASE_URL = '<?= BASE_URL ?>';</script>
-<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= filemtime(__DIR__ . '/assets/js/main.js') ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= ASSET_VERSION ?>"></script>
 </body>
 </html>

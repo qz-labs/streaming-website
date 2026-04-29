@@ -1563,6 +1563,32 @@ a, button, [role="button"], input, select, label, summary {
   .card__details-btn { opacity: 1; }
 }
 
+.card__remove-btn {
+  position: absolute;
+  top: 0.45rem;
+  right: 2.4rem;
+  z-index: 3;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.card:hover .card__remove-btn { opacity: 1; }
+.card__remove-btn:hover { background: rgba(180, 30, 30, 0.85); }
+@media (hover: none) and (pointer: coarse) {
+  .card__remove-btn { opacity: 1; }
+}
+
 /* ── Watch-nav details link ───────────────────────────────────────────────────── */
 .watch-nav__details {
   font-size: 0.8rem;
@@ -1676,6 +1702,34 @@ a, button, [role="button"], input, select, label, summary {
   opacity: 0.5;
   cursor: default;
   pointer-events: none;
+}
+
+.btn-remove-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.4rem;
+  background: rgba(229, 9, 20, 0.92);
+  border: 1px solid rgba(255, 110, 118, 0.95);
+  color: #fff;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 700;
+  box-shadow: 0 12px 30px rgba(229, 9, 20, 0.22);
+  transition: transform var(--transition), background var(--transition), box-shadow var(--transition);
+}
+
+.btn-remove-progress:hover {
+  background: #ff2f3a;
+  box-shadow: 0 16px 34px rgba(255, 47, 58, 0.28);
+  transform: translateY(-1px);
+}
+
+.btn-remove-progress:disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+  transform: none;
 }
 
 /* ── Reduced motion ──────────────────────────────────────────────────────────── */

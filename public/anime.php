@@ -74,7 +74,7 @@ $activePage = 'anime';
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Anime &ndash; <?= e(SITE_NAME) ?></title>
   <?php require __DIR__ . '/partials/fonts.php'; ?>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= ASSET_VERSION ?>">
   <style>
     /* Anime hero: portrait poster blurred as bg */
     .anime-hero-bg { background: #060010; }
@@ -145,6 +145,6 @@ $activePage = 'anime';
 <?php require __DIR__ . '/partials/footer.php'; ?>
 
 <script>const BASE_URL = '<?= BASE_URL ?>';</script>
-<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= filemtime(__DIR__ . '/assets/js/main.js') ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= ASSET_VERSION ?>"></script>
 </body>
 </html>

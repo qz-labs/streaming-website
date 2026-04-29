@@ -129,8 +129,7 @@ function extraProviderUrl(array $provider, string $type, int $id, int $season = 
  *   'sub' => [ ['url'=>..., 'label'=>..., 'ping'=>...], ... ]
  *   'dub' => [ ['url'=>..., 'label'=>..., 'ping'=>...], ... ]
  *
- * Provider 1 (vidsrc.me family): supports ds_lang for sub/dub.
- * Provider 2 (vidsrc.cc, vidsrc.mov): no lang param, same URL for both modes.
+ * Order: moviesapi.to first, then vidsrc.me family, then extras.
  */
 function vidsrcAllUrls(string $type, int $id, int $season = 1, int $episode = 1, string $origLang = ''): array
 {
@@ -138,6 +137,13 @@ function vidsrcAllUrls(string $type, int $id, int $season = 1, int $episode = 1,
     $dub = [];
 
     $subLang = ($origLang !== '' && $origLang !== 'en') ? $origLang : 'en';
+
+    // ── Provider 0: moviesapi.to (primary — different URL scheme) ───────────────
+    $moviesApiUrl = ($type === 'movie')
+        ? 'https://' . MOVIESAPI_HOST . '/movie/' . $id
+        : 'https://' . MOVIESAPI_HOST . '/tv/' . $id . '-' . $season . '-' . $episode;
+    $sub[] = ['url' => $moviesApiUrl, 'label' => 'M1', 'ping' => 'https://' . MOVIESAPI_HOST . '/movie/550'];
+    $dub[] = ['url' => $moviesApiUrl, 'label' => 'M1', 'ping' => 'https://' . MOVIESAPI_HOST . '/movie/550'];
 
     // ── Provider 1: vidsrc.me family (dash format, ds_lang support) ────────────
     foreach (VIDSRC_DOMAINS as $i => $domain) {
@@ -164,7 +170,6 @@ function vidsrcAllUrls(string $type, int $id, int $season = 1, int $episode = 1,
         $label = 'S' . ($baseCount + $j + 1);
         $url   = extraProviderUrl($provider, $type, $id, $season, $episode);
         $ping  = 'https://' . $provider['host'] . $provider['prefix'] . '/embed/movie/550';
-        // Extra providers have no lang control — same URL for both modes
         $sub[] = ['url' => $url, 'label' => $label, 'ping' => $ping];
         $dub[] = ['url' => $url, 'label' => $label, 'ping' => $ping];
     }
@@ -321,20 +326,20 @@ function renderRow(string $title, array $items, string $type): void
     echo '<h2 class="row__title">' . e($title) . '</h2>';
     echo '<div class="row__track">';
     foreach ($items as $item) {
-        $id    = (int)($item['id'] ?? 0);
-        $name  = e($item['title'] ?? $item['name'] ?? 'Unknown');
-        $year  = e(yearFromDate($item['release_date'] ?? $item['first_air_date'] ?? null));
-        $rating = isset($item['vote_average']) ? ratingBadge((float)$item['vote_average']) : '';
-        $poster = imgUrl($item['poster_path'] ?? null);
+        $id       = (int)($item['id'] ?? 0);
+        $name     = $item['title'] ?? $item['name'] ?? 'Unknown';
+        $year     = yearFromDate($item['release_date'] ?? $item['first_air_date'] ?? null);
+        $rating   = isset($item['vote_average']) ? ratingBadge((float)$item['vote_average']) : '';
+        $poster   = imgUrl($item['poster_path'] ?? null);
         $link     = $detailBase . $id;
         $genreIds = implode(',', $item['genre_ids'] ?? []);
-        echo '<a class="card" href="' . e($link) . '" title="' . $name . '" data-genre-ids="' . $genreIds . '">';
-        echo '<img src="' . e($poster) . '" alt="' . $name . '" loading="lazy" referrerpolicy="no-referrer">';
+        echo '<a class="card" href="' . e($link) . '" title="' . e($name) . '" data-genre-ids="' . e($genreIds) . '">';
+        echo '<img src="' . e($poster) . '" alt="' . e($name) . '" loading="lazy" referrerpolicy="no-referrer">';
         echo '<div class="card__play">&#9654;</div>';
         echo '<div class="card__overlay">';
         if ($rating) echo '<span class="card__rating">&#9733; ' . e($rating) . '</span>';
-        echo '<p class="card__title">' . $name . '</p>';
-        if ($year) echo '<p class="card__year">' . $year . '</p>';
+        echo '<p class="card__title">' . e($name) . '</p>';
+        if ($year) echo '<p class="card__year">' . e($year) . '</p>';
         echo '</div>';
         echo '</a>';
     }
@@ -391,7 +396,7 @@ function renderContinueWatchingRow(array $items): void
         if ($type === 'tv'    && $season > 0 && $episode > 0) $subLabel = 'S' . $season . ' E' . $episode;
         if ($type === 'anime' && $episode > 0)                 $subLabel = 'Ep ' . $episode;
 
-        echo '<div class="card card--progress">';
+        echo '<div class="card card--progress" data-progress-type="' . e($type) . '" data-progress-id="' . $id . '">';
 
         // Poster image — sits in normal flow, fills the card
         if ($type === 'anime' && $poster !== '') {
@@ -412,6 +417,9 @@ function renderContinueWatchingRow(array $items): void
 
         // Details button — sits above the stretched link
         echo '<a class="card__details-btn" href="' . e($detailLink) . '">&#9432;</a>';
+
+        // Remove-from-watching button
+        echo '<button class="card__remove-btn" title="Remove from Continue Watching" aria-label="Remove ' . e($title) . ' from Continue Watching">&#10005;</button>';
 
         echo '</div>';
     }

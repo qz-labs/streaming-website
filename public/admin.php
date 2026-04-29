@@ -11,6 +11,7 @@ $msgType = 'success';
 
 // ── Handle POST actions ────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrf();
     $action = $_POST['action'] ?? '';
 
     // Approve / reject a pending user
@@ -254,11 +255,13 @@ $admin    = currentUser();
               <td>
                 <div class="actions">
                   <form method="POST">
+                    <?= csrfField() ?>
                     <input type="hidden" name="action"  value="approve">
                     <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                     <button type="submit" class="btn btn-green btn-sm">Approve</button>
                   </form>
                   <form method="POST">
+                    <?= csrfField() ?>
                     <input type="hidden" name="action"  value="reject">
                     <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                     <button type="submit" class="btn btn-danger btn-sm">Reject</button>
@@ -306,18 +309,21 @@ $admin    = currentUser();
                   <?php if (!$isSelf): ?>
                     <?php if ($u['role'] === 'user'): ?>
                     <form method="POST" onsubmit="return confirm('Promote <?= htmlspecialchars($u['username']) ?> to admin?')">
+                      <?= csrfField() ?>
                       <input type="hidden" name="action"   value="set_role">
                       <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
                       <input type="hidden" name="new_role" value="admin">
                       <button type="submit" class="btn btn-green btn-sm">Make Admin</button>
                     </form>
                     <form method="POST" onsubmit="return confirm('Revoke access for <?= htmlspecialchars($u['username']) ?>?')">
+                      <?= csrfField() ?>
                       <input type="hidden" name="action"  value="reject">
                       <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                       <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
                     </form>
                     <?php else: ?>
                     <form method="POST" onsubmit="return confirm('Demote <?= htmlspecialchars($u['username']) ?> to regular user?')">
+                      <?= csrfField() ?>
                       <input type="hidden" name="action"   value="set_role">
                       <input type="hidden" name="user_id"  value="<?= (int)$u['id'] ?>">
                       <input type="hidden" name="new_role" value="user">
@@ -325,6 +331,7 @@ $admin    = currentUser();
                     </form>
                     <?php endif; ?>
                     <form method="POST" onsubmit="return confirm('Delete <?= htmlspecialchars($u['username']) ?> permanently?')">
+                      <?= csrfField() ?>
                       <input type="hidden" name="action"  value="delete">
                       <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                       <button type="submit" class="btn btn-danger btn-sm">Delete</button>
@@ -368,11 +375,13 @@ $admin    = currentUser();
             <td>
               <div class="actions">
                 <form method="POST">
+                  <?= csrfField() ?>
                   <input type="hidden" name="action"  value="approve">
                   <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                   <button type="submit" class="btn btn-green btn-sm">Approve</button>
                 </form>
                 <form method="POST" onsubmit="return confirm('Delete this user permanently?')">
+                  <?= csrfField() ?>
                   <input type="hidden" name="action"  value="delete">
                   <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                   <button type="submit" class="btn btn-danger btn-sm">Delete</button>
@@ -395,6 +404,7 @@ $admin    = currentUser();
     </div>
     <div class="card">
       <form method="POST" class="settings-grid">
+        <?= csrfField() ?>
         <input type="hidden" name="action" value="update_admin">
 
         <div class="field">

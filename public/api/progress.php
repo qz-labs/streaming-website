@@ -13,6 +13,22 @@ if (!$user) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    $body = json_decode(file_get_contents('php://input'), true);
+    $type = $body['content_type'] ?? '';
+    $id   = (int)($body['content_id'] ?? 0);
+    if (!in_array($type, ['movie', 'tv', 'anime'], true) || $id <= 0) {
+        http_response_code(422);
+        echo json_encode(['error' => 'Invalid content_type or content_id']);
+        exit;
+    }
+    Database::get()->prepare(
+        "DELETE FROM watch_progress WHERE user_id=? AND content_type=? AND content_id=?"
+    )->execute([$user['id'], $type, $id]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
@@ -49,6 +65,11 @@ $episode  = max(0, $episode);
 $title    = mb_substr($title,   0, 500);
 $poster   = mb_substr($poster,  0, 500);
 $epTitle  = mb_substr($epTitle, 0, 500);
+
+if ($progress === 0 && $duration === 0) {
+    echo json_encode(['ok' => true, 'skipped' => true]);
+    exit;
+}
 
 Database::get()->prepare("
     INSERT INTO watch_progress

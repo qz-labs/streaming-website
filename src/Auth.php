@@ -10,15 +10,114 @@ function authStart(): void {
             'path'     => '/',
             'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
             'httponly' => true,
-            'samesite' => 'Lax',
+            'samesite' => 'Strict',
         ]);
         session_start();
     }
 }
 
+function csrfToken(): string
+{
+    authStart();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function validateCsrf(): void
+{
+    authStart();
+    $token = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+        http_response_code(403);
+        exit('Invalid CSRF token.');
+    }
+}
+
+function csrfField(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken(), ENT_QUOTES) . '">';
+}
+
 function currentUser(): ?array {
     authStart();
     return $_SESSION['auth_user'] ?? null;
+}
+
+function normalizeLoginUsername(string $username): string
+{
+    return mb_strtolower(trim($username), 'UTF-8');
+}
+
+function loginClientIp(): string
+{
+    $ip = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    return $ip !== '' ? $ip : 'unknown';
+}
+
+function loginLockoutStatus(string $username): array
+{
+    $normalized = normalizeLoginUsername($username);
+    if ($normalized === '') {
+        return ['locked' => false, 'remaining_minutes' => 0];
+    }
+
+    $stmt = Database::get()->prepare(
+        "SELECT locked_until
+         FROM login_attempts
+         WHERE username_key = ? AND ip_address = ?
+         LIMIT 1"
+    );
+    $stmt->execute([$normalized, loginClientIp()]);
+    $row = $stmt->fetch();
+
+    if (!$row || empty($row['locked_until'])) {
+        return ['locked' => false, 'remaining_minutes' => 0];
+    }
+
+    $lockedUntil = strtotime((string)$row['locked_until']);
+    if ($lockedUntil === false || $lockedUntil <= time()) {
+        return ['locked' => false, 'remaining_minutes' => 0];
+    }
+
+    return [
+        'locked' => true,
+        'remaining_minutes' => (int)ceil(($lockedUntil - time()) / 60),
+    ];
+}
+
+function recordFailedLoginAttempt(string $username): void
+{
+    $normalized = normalizeLoginUsername($username);
+    if ($normalized === '') {
+        $normalized = '(empty)';
+    }
+
+    Database::get()->prepare("
+        INSERT INTO login_attempts (username_key, ip_address, attempts, locked_until)
+        VALUES (?, ?, 1, NULL)
+        ON DUPLICATE KEY UPDATE
+            attempts = IF(locked_until IS NOT NULL AND locked_until <= NOW(), 1, attempts + 1),
+            locked_until = CASE
+                WHEN IF(locked_until IS NOT NULL AND locked_until <= NOW(), 1, attempts + 1) >= 5
+                    THEN DATE_ADD(NOW(), INTERVAL 15 MINUTE)
+                ELSE NULL
+            END,
+            updated_at = CURRENT_TIMESTAMP
+    ")->execute([$normalized, loginClientIp()]);
+}
+
+function clearFailedLoginAttempts(string $username): void
+{
+    $normalized = normalizeLoginUsername($username);
+    if ($normalized === '') {
+        return;
+    }
+
+    Database::get()->prepare(
+        "DELETE FROM login_attempts WHERE username_key = ? AND ip_address = ?"
+    )->execute([$normalized, loginClientIp()]);
 }
 
 function isLoggedIn(): bool {
@@ -85,6 +184,7 @@ function attemptLogin(string $username, string $password): array|string {
         'role'     => $user['role'],
     ];
     session_regenerate_id(true);
+    clearFailedLoginAttempts($username);
     return $user;
 }
 
@@ -96,8 +196,9 @@ function registerUser(string $username, string $password): true|string {
     $username = trim($username);
 
     if ($username === '' || !preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
-        return 'Username must be 3–30 characters and may only contain letters, numbers, and underscores.';
+        return 'Username must be 3-30 characters and may only contain letters, numbers, and underscores.';
     }
+
     if (strlen($password) < 6) {
         return 'Password must be at least 6 characters.';
     }
@@ -123,3 +224,4 @@ function logout(): void {
     $_SESSION = [];
     session_destroy();
 }
+

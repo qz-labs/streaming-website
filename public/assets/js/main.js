@@ -329,7 +329,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ── 11. Broken image fallback ─────────────────────────────────────────────────
+  // ── 11. Remove from Continue Watching ────────────────────────────────────────
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.card__remove-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const card = btn.closest('.card--progress');
+    if (!card) return;
+    const type = card.dataset.progressType;
+    const id   = parseInt(card.dataset.progressId, 10);
+    if (!type || !id) return;
+    btn.disabled = true;
+    try {
+      await fetch((typeof BASE_URL !== 'undefined' ? BASE_URL : '') + '/api/progress.php', {
+        method : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ content_type: type, content_id: id }),
+      });
+      card.style.transition = 'opacity 0.2s';
+      card.style.opacity    = '0';
+      setTimeout(() => card.remove(), 200);
+    } catch {
+      btn.disabled = false;
+    }
+  });
+
+  // ── 12. Broken image fallback ─────────────────────────────────────────────────
   const IMG_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231f1f1f'/%3E%3Crect x='40' y='60' width='220' height='330' rx='4' fill='%23333'/%3E%3Ctext x='150' y='235' font-family='Arial' font-size='14' fill='%23666' text-anchor='middle'%3ENo Image%3C/text%3E%3C/svg%3E";
   document.querySelectorAll('.card img').forEach(img => {
     img.addEventListener('error', function () {

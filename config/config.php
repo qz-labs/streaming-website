@@ -1,45 +1,34 @@
 <?php
 declare(strict_types=1);
 
-// ── Load environment variables from .env file ─────────────────────────────────
-function loadEnv($filePath = __DIR__ . '/../.env') {
-    if (!file_exists($filePath)) {
-        return;
-    }
-    
-    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        // Skip comments
-        if (strpos(trim($line), '#') === 0) {
-            continue;
+function loadEnv(string $filePath = __DIR__ . '/../.env'): void
+{
+    if (!file_exists($filePath)) return;
+
+    foreach (file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        if (str_starts_with(trim($line), '#') || !str_contains($line, '=')) continue;
+
+        [$key, $value] = explode('=', $line, 2);
+        $key   = trim($key);
+        $value = trim($value);
+
+        if (strlen($value) >= 2 && in_array($value[0], ['"', "'"], true) && $value[0] === $value[-1]) {
+            $value = substr($value, 1, -1);
         }
-        
-        // Parse KEY=VALUE
-        if (strpos($line, '=') !== false) {
-            [$key, $value] = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
-            
-            // Remove quotes if present
-            if ((strpos($value, '"') === 0 && strrpos($value, '"') === strlen($value) - 1) ||
-                (strpos($value, "'") === 0 && strrpos($value, "'") === strlen($value) - 1)) {
-                $value = substr($value, 1, -1);
-            }
-            
-            $_ENV[$key] = $value;
-        }
+
+        $_ENV[$key] = $value;
     }
 }
 
 loadEnv();
 
-// Helper function to get environment variables with fallback
-function env($key, $default = null) {
+function env(string $key, mixed $default = null): mixed
+{
     return $_ENV[$key] ?? $_SERVER[$key] ?? $default;
 }
 
 // ── TMDB API ──────────────────────────────────────────────────────────────────
-define('TMDB_KEY',          env('TMDB_KEY', ''));   // From .env file
+define('TMDB_KEY',          env('TMDB_KEY', ''));
 define('TMDB_BASE',         'https://api.themoviedb.org/3');
 define('TMDB_IMAGE_BASE',   'https://image.tmdb.org/t/p');
 
@@ -64,7 +53,10 @@ define('VIDSRC_EXTRA_PROVIDERS', [
     ['host' => 'vidsrc.icu', 'prefix' => ''],       // vidsrc.icu mirror
 ]);
 
-// Kept for backwards-compat in helpers.
+// ── Provider 3: moviesapi.to — uses TMDB IDs, different URL scheme ────────────
+// Movie: /movie/{tmdb_id}   TV: /tv/{tmdb_id}-{season}-{episode}
+define('MOVIESAPI_HOST', 'moviesapi.to');
+
 define('VIDSRC_BASE', 'https://' . VIDSRC_DOMAINS[0] . '/embed');
 
 // ── Site ──────────────────────────────────────────────────────────────────────
@@ -96,8 +88,10 @@ if (env('TMDB_KEY', '') === '' && php_sapi_name() !== 'cli') {
 }
 
 // ── HiAnime API + m3u8 proxy (optional) ──────────────────────────────────────
-define('CONSUMET_URL',      rtrim(env('CONSUMET_URL',    ''), '/'));  // empty = disabled
-define('M3U8_PROXY_URL',    rtrim(env('M3U8_PROXY_URL', ''), '/'));  // empty = no proxy
+define('CONSUMET_URL',         rtrim(env('CONSUMET_URL',         ''), '/'));              // empty = disabled
+define('M3U8_PROXY_URL',       rtrim(env('M3U8_PROXY_URL',       ''), '/'));              // empty = no proxy
+define('VIDSRC_EXTRACTOR_URL', rtrim(env('VIDSRC_EXTRACTOR_URL', 'http://localhost:3031'), '/'));  // vidsrc M3U8 extractor (legacy)
+define('CINEPRO_URL',          rtrim(env('CINEPRO_URL',          'http://localhost:3002'), '/'));  // CinePro multi-provider stream extractor
 
 // ── cURL SSL ─────────────────────────────────────────────────────────────────
 // Path to CA bundle for SSL verification. On XAMPP/Windows this must be set
@@ -107,6 +101,10 @@ define('CURL_CA_BUNDLE',    env('CURL_CA_BUNDLE', ''));
 // ── File cache ────────────────────────────────────────────────────────────────
 define('CACHE_DIR',         __DIR__ . '/../cache');
 define('CACHE_TTL',         (int) env('CACHE_TTL', '3600'));   // seconds (1 hour)
+
+// ── Asset cache-busting ───────────────────────────────────────────────────────
+// One filesystem stat at config-load time instead of one per asset per page.
+define('ASSET_VERSION', (string)(@filemtime(__DIR__ . '/../public/assets/css/style.css') ?: '1'));
 
 if (!is_dir(CACHE_DIR)) {
     mkdir(CACHE_DIR, 0755, true);

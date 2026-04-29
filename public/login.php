@@ -15,18 +15,34 @@ $mode    = $_POST['mode'] ?? $_GET['mode'] ?? 'login'; // 'login' | 'register'
 $error   = '';
 $success = '';
 
+// ── Rate limiting: max 5 login failures, 15-minute lockout ───────────────────
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrf();
+
     $mode     = $_POST['mode'] ?? 'login';
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
 
     if ($mode === 'login') {
-        $result = attemptLogin($username, $password);
-        if (is_string($result)) {
-            $error = $result;
+        $lockout = loginLockoutStatus($username);
+        if ($lockout['locked']) {
+            $remaining = $lockout['remaining_minutes'];
+            $error = "Too many failed attempts. Try again in {$remaining} minute(s).";
         } else {
-            header('Location: ' . BASE_URL . '/');
-            exit;
+            $result = attemptLogin($username, $password);
+            if (is_string($result)) {
+                recordFailedLoginAttempt($username);
+                $updatedLockout = loginLockoutStatus($username);
+                if ($updatedLockout['locked']) {
+                    $error = 'Too many failed attempts. Account locked for 15 minutes.';
+                } else {
+                    $error = $result;
+                }
+            } else {
+                header('Location: ' . BASE_URL . '/');
+                exit;
+            }
         }
     } elseif ($mode === 'register') {
         $result = registerUser($username, $password);
@@ -43,7 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title><?= htmlspecialchars(SITE_NAME) ?> – <?= $mode === 'register' ? 'Create Account' : 'Sign In' ?></title>
+  <title><?= htmlspecialchars(SITE_NAME) ?> - <?= $mode === 'register' ? 'Create Account' : 'Sign In' ?></title>
+  <script>
+    document.title = '<?= addslashes((string)SITE_NAME) ?> - <?= $mode === 'register' ? 'Create Account' : 'Sign In' ?>';
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
@@ -168,6 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <form method="POST" action="<?= BASE_URL ?>/login.php" autocomplete="on">
       <input type="hidden" name="mode" value="<?= htmlspecialchars($mode) ?>">
+      <?= csrfField() ?>
 
       <div class="field">
         <label for="username">Username</label>
@@ -190,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           name="password"
           required
           autocomplete="<?= $mode === 'register' ? 'new-password' : 'current-password' ?>"
-          placeholder="<?= $mode === 'register' ? 'At least 6 characters' : '••••••••' ?>"
+          placeholder="<?= $mode === 'register' ? 'At least 6 characters' : '********' ?>"
         >
       </div>
 
@@ -210,5 +230,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 
+<script>
+  (function () {
+    const passwordInput = document.getElementById('password');
+    if (!passwordInput || passwordInput.getAttribute('autocomplete') === 'new-password') {
+      return;
+    }
+    passwordInput.setAttribute('placeholder', '********');
+  })();
+</script>
 </body>
 </html>
+
+
+

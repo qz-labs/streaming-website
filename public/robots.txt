@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin.php
+Disallow: /api/
+Disallow: /watch.php
+Disallow: /anime-watch.php
+Disallow: /stream.php
+Disallow: /stream-movie.php

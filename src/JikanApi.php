@@ -250,7 +250,7 @@ class JikanApi
         $page = 1;
         do {
             $result = $this->animeEpisodes($malId, $page);
-            $all = array_merge($all, $result['episodes']);
+            array_push($all, ...$result['episodes']);
             $hasNext = $result['has_next'];
             $page++;
         } while ($hasNext && $page <= 20); // safety cap at 2000 episodes

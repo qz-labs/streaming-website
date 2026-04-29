@@ -67,7 +67,7 @@ $activePage = '';
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($title) ?> &ndash; <?= e(SITE_NAME) ?></title>
   <?php require __DIR__ . '/partials/fonts.php'; ?>
-  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css?v=<?= ASSET_VERSION ?>">
 </head>
 <body>
 
@@ -110,8 +110,19 @@ $activePage = '';
             $contT       = (int)$continueProgress['progress_seconds'];
             $contWatchUrl = movieWatchUrl($id, $contT) . '&from=' . urlencode('/movie.php?id=' . $id);
           ?>
-          <a class="btn btn-play" href="<?= e($contWatchUrl) ?>">&#9654; Continue Movie</a>
-          <a class="btn btn-secondary" href="<?= e($watchUrl) ?>">&#9654; Play from Start</a>
+          <span id="continue-block" style="display:contents;">
+            <a class="btn btn-play" href="<?= e($contWatchUrl) ?>">&#9654; Continue Movie</a>
+            <a class="btn btn-secondary" href="<?= e($watchUrl) ?>">&#9654; Play from Start</a>
+            <button
+              class="btn btn-remove-progress"
+              id="remove-progress-btn"
+              data-type="movie"
+              data-id="<?= $id ?>"
+            >&#10005; Remove from Watching</button>
+          </span>
+          <span id="play-block" style="display:none;">
+            <a class="btn btn-play" href="<?= e($watchUrl) ?>">&#9654; Play Movie</a>
+          </span>
         <?php else: ?>
           <a class="btn btn-play" href="<?= e($watchUrl) ?>">&#9654; Play Movie</a>
         <?php endif; ?>
@@ -152,7 +163,7 @@ $activePage = '';
 <?php require __DIR__ . '/partials/footer.php'; ?>
 
 <script>const BASE_URL = '<?= BASE_URL ?>';</script>
-<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= filemtime(__DIR__ . '/assets/js/main.js') ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= ASSET_VERSION ?>"></script>
 <script>
 (function () {
   'use strict';
@@ -178,6 +189,28 @@ $activePage = '';
     } catch (err) {
       console.error('Favorites error:', err);
     } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  const btn = document.getElementById('remove-progress-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      await fetch(BASE_URL + '/api/progress.php', {
+        method : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ content_type: btn.dataset.type, content_id: parseInt(btn.dataset.id, 10) }),
+      });
+      document.getElementById('continue-block').style.display = 'none';
+      document.getElementById('play-block').style.display = '';
+    } catch (err) {
+      console.error('Remove progress error:', err);
       btn.disabled = false;
     }
   });
